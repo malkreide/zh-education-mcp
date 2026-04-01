@@ -1,0 +1,68 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "zh-education-mcp"
+version = "0.1.0"
+description = "MCP-Server für Bildungsstatistiken des Kantons und der Stadt Zürich (BISTA)"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "malkreide" }]
+requires-python = ">=3.11"
+keywords = [
+    "mcp",
+        "bildungsstatistik",
+            "kanton-zuerich",
+                "bista",
+                    "schulkreis",
+                        "volksschule",
+                            "open-data",
+                            ]
+                            classifiers = [
+                                "Development Status :: 4 - Beta",
+                                    "Intended Audience :: Developers",
+                                        "License :: OSI Approved :: MIT License",
+                                            "Programming Language :: Python :: 3",
+                                                "Programming Language :: Python :: 3.11",
+                                                    "Programming Language :: Python :: 3.12",
+                                                        "Topic :: Education",
+                                                            "Topic :: Scientific/Engineering :: Information Analysis",
+                                                            ]
+                                                            dependencies = [
+                                                                "fastmcp>=1.0.0",
+                                                                    "httpx>=0.27.0",
+                                                                        "pydantic>=2.0.0",
+                                                                        ]
+
+                                                                        [project.optional-dependencies]
+                                                                        dev = [
+                                                                            "pytest>=8.0.0",
+                                                                                "pytest-asyncio>=0.23.0",
+                                                                                    "respx>=0.21.0",
+                                                                                        "ruff>=0.4.0",
+                                                                                        ]
+
+                                                                                        [project.scripts]
+                                                                                        zh-education-mcp = "zh_education_mcp.server:mcp.run"
+
+                                                                                        [project.urls]
+                                                                                        Homepage = "https://github.com/malkreide/zh-education-mcp"
+                                                                                        Repository = "https://github.com/malkreide/zh-education-mcp"
+                                                                                        Issues = "https://github.com/malkreide/zh-education-mcp/issues"
+
+                                                                                        [tool.hatch.build.targets.wheel]
+                                                                                        packages = ["src/zh_education_mcp"]
+
+                                                                                        [tool.pytest.ini_options]
+                                                                                        asyncio_mode = "auto"
+                                                                                        markers = [
+                                                                                            "live: Tests, die echte API-Aufrufe machen (von CI ausgeschlossen)",
+                                                                                            ]
+
+                                                                                            [tool.ruff]
+                                                                                            line-length = 100
+                                                                                            target-version = "py311"
+
+                                                                                            [tool.ruff.lint]
+                                                                                            select = ["E", "F", "I", "UP"]
