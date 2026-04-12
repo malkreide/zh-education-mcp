@@ -31,23 +31,9 @@ Alle Daten stammen von der **BISTA Public API** (`bista.zh.ch/basicapi/ogd/`) �
 
 ## Demo
 
-<!-- Ersetze mit eigener Aufnahme: Claude Desktop → Frage stellen → Tool Call → Antwort -->
 <p align="center">
-  <img src="docs/demo.gif" alt="zh-education-mcp Demo: Claude fragt BISTA-Daten ab" width="720">
+  <img src="assets/demo.png" alt="zh-education-mcp Demo: Claude fragt BISTA-Daten ab" width="720">
 </p>
-
-<details>
-<summary><strong>Eigene Demo aufnehmen</strong></summary>
-
-1. Claude Desktop mit `zh-education-mcp` konfigurieren
-2. Fragen: *«Wie hat sich die Lernendenzahl im Schulkreis Letzi in den letzten 5 Jahren entwickelt?»*
-3. Bildschirm aufnehmen (Prompt → Tool Call → Markdown-Tabelle)
-4. In GIF konvertieren (z. B. mit [Gifski](https://gif.ski/) oder `ffmpeg`)
-5. Als `docs/demo.gif` speichern und committen
-
-**Empfohlen:** 720px breit, 15–30 Sekunden, einmal abspielen.
-
-</details>
 
 ---
 

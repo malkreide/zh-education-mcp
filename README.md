@@ -31,23 +31,9 @@ All data is fetched from the **BISTA public API** (`bista.zh.ch/basicapi/ogd/`) 
 
 ## Demo
 
-<!-- Replace with your own recording: Claude Desktop → ask a question → tool call → response -->
 <p align="center">
-  <img src="docs/demo.gif" alt="zh-education-mcp demo: Claude queries BISTA data" width="720">
+  <img src="assets/demo.png" alt="zh-education-mcp demo: Claude queries BISTA data" width="720">
 </p>
-
-<details>
-<summary><strong>How to record your own demo</strong></summary>
-
-1. Open Claude Desktop with `zh-education-mcp` configured
-2. Ask: *"Wie hat sich die Lernendenzahl im Schulkreis Letzi in den letzten 5 Jahren entwickelt?"*
-3. Record the screen (prompt → tool call → markdown table response)
-4. Convert to GIF (e.g. with [Gifski](https://gif.ski/) or `ffmpeg`)
-5. Save as `docs/demo.gif` and commit
-
-**Recommended:** 720px wide, 15–30 seconds, loop once.
-
-</details>
 
 ---
 
