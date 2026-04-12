@@ -29,6 +29,28 @@ Alle Daten stammen von der **BISTA Public API** (`bista.zh.ch/basicapi/ogd/`) �
 
 ---
 
+## Demo
+
+<!-- Ersetze mit eigener Aufnahme: Claude Desktop → Frage stellen → Tool Call → Antwort -->
+<p align="center">
+  <img src="docs/demo.gif" alt="zh-education-mcp Demo: Claude fragt BISTA-Daten ab" width="720">
+</p>
+
+<details>
+<summary><strong>Eigene Demo aufnehmen</strong></summary>
+
+1. Claude Desktop mit `zh-education-mcp` konfigurieren
+2. Fragen: *«Wie hat sich die Lernendenzahl im Schulkreis Letzi in den letzten 5 Jahren entwickelt?»*
+3. Bildschirm aufnehmen (Prompt → Tool Call → Markdown-Tabelle)
+4. In GIF konvertieren (z. B. mit [Gifski](https://gif.ski/) oder `ffmpeg`)
+5. Als `docs/demo.gif` speichern und committen
+
+**Empfohlen:** 720px breit, 15–30 Sekunden, einmal abspielen.
+
+</details>
+
+---
+
 ## Funktionen
 
 - 📊 **8 Tools** für Bildungsdaten über alle Schulstufen
@@ -200,6 +222,20 @@ zh-education-mcp/
 - **Jährliche Aktualisierung:** BISTA-Daten werden einmal jährlich aktualisiert (Stichtag: 15. September). Der 24h-In-Memory-Cache passt zu diesem Zyklus.
 - **CSV-basierte API:** Die BISTA-API liefert CSV-Daten; grosse Datensätze können einen Moment zum Parsen brauchen.
 - **Schulgemeinde-Namen:** Namen müssen exakt übereinstimmen (`zh_edu_list_schulgemeinden` zeigt gültige Namen).
+
+---
+
+## Sicherheit & Grenzen
+
+| Thema | Details |
+|-------|---------|
+| **Keine Personendaten** | BISTA-Statistiken sind aggregiert — es werden keine individuellen Schülerdaten offengelegt. Alle Zahlen sind auf Ebene Schulgemeinde anonymisiert. |
+| **Nur lesend** | Alle Tools sind schreibgeschützt (`readOnlyHint: true`). Der Server kann keine Daten verändern, löschen oder schreiben. |
+| **Keine Authentifizierung** | Die BISTA-API ist vollständig öffentlich. Es werden keine API-Schlüssel, Tokens oder Zugangsdaten gespeichert oder übertragen. |
+| **Rate Limits** | Die BISTA-API hat kein dokumentiertes Rate Limit. Der Server nutzt einen 24h-In-Memory-Cache, um Anfragen zu minimieren. Bitte verantwortungsvoll nutzen. |
+| **Datenlizenz** | Alle Daten stehen unter [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) des Kantons Zürich. Quellenangabe: *Bildungsstatistik Kanton Zürich (BISTA)*. |
+| **Nutzungsbedingungen** | Die Nutzung unterliegt den [BISTA-Nutzungsbedingungen](https://pub.bista.zh.ch). Der MCP-Server ist ein unabhängiges Open-Source-Projekt ohne Verbindung zum Kanton Zürich. |
+| **KI-Ausgabe-Hinweis** | Statistiken werden 1:1 von der BISTA-API durchgereicht. KI-generierte Interpretationen oder Zusammenfassungen sollten am [offiziellen BISTA-Portal](https://pub.bista.zh.ch) verifiziert werden. |
 
 ---
 
