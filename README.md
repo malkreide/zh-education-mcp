@@ -96,6 +96,8 @@ Try it immediately in Claude Desktop:
 > *"Zeige die Maturitätsquote der Stadt Zürich"*
 > *"Welche Nationalitäten sind in Adliswil am häufigsten?"*
 
+→ [More use cases by audience](EXAMPLES.md) →
+
 ---
 
 ## Configuration

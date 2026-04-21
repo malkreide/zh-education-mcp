@@ -96,6 +96,8 @@ Sofort ausprobieren in Claude Desktop:
 > *«Zeige die Maturitätsquote der Stadt Zürich»*
 > *«Welche Nationalitäten sind in Adliswil am häufigsten?»*
 
+→ [Weitere Anwendungsbeispiele nach Zielgruppe](EXAMPLES.md) →
+
 ---
 
 ## Konfiguration
