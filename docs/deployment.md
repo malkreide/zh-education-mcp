@@ -59,3 +59,20 @@ Load-Balancer-Probes und den Docker-HEALTHCHECK.
 1. Repo verbinden, Runtime „Docker".
 2. Render setzt `PORT` — entsprechend `MCP_PORT` mappen (oder `MCP_PORT=8000`).
 3. Endpoint in claude.ai: `https://<app>.onrender.com/mcp` (Streamable HTTP).
+
+## Observability — OpenTelemetry (opt-in, OBS-006)
+
+Tracing ist standardmäßig **aus** (kein Overhead im stdio-Default). Aktivierung:
+
+```bash
+pip install "zh-education-mcp[otel]"
+export MCP_OTEL_ENABLED=true
+export OTEL_EXPORTER_OTLP_ENDPOINT="https://otel-collector:4318"   # OTLP/HTTP
+export OTEL_SERVICE_NAME="zh-education-mcp"
+```
+
+Pro Tool-Call entsteht ein Span `mcp.tool/<name>` mit `mcp.tool.name` und
+`mcp.tool.result.is_error` (bewusst minimal, kein PII). Ausgehende
+httpx-Requests werden als Child-Spans auto-instrumentiert. Ist das SDK nicht
+installiert oder die ENV-Var nicht gesetzt, läuft der Server unverändert ohne
+Tracing.

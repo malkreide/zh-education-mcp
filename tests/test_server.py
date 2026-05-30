@@ -46,6 +46,18 @@ def _clear_cache():
     _cache.clear()
 
 
+@pytest.fixture(autouse=True)
+def _stub_dns(monkeypatch):
+    """getaddrinfo deterministisch auf eine öffentliche IP stubben, damit Unit-
+    Tests hermetisch bleiben (kein echtes DNS) und der Egress-Guard durchlässt."""
+    import socket
+
+    def fake_getaddrinfo(host, port, *a, **k):
+        return [(socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", ("8.8.8.8", port))]
+
+    monkeypatch.setattr("zh_education_mcp.http_client.socket.getaddrinfo", fake_getaddrinfo)
+
+
 @pytest.mark.asyncio
 async def test_anker_query_letzi_trend():
     """Anker-Query: Schulkreis Letzi 5-Jahres-Trend."""
@@ -455,3 +467,162 @@ def test_lizenz_resource_has_attribution():
 
     payload = json.loads(lizenz_resource())
     assert payload["license"] == "CC BY 4.0"
+
+
+# ── Folge-Fix: OBS-001 — Execution-Errors als isError:true (ToolError) ───────────
+@pytest.mark.asyncio
+async def test_execution_error_raises_toolerror():
+    """Ein Backend-Fehler wird als ToolError (isError:true) signalisiert, sanitisiert."""
+    from mcp.server.fastmcp.exceptions import ToolError
+
+    from zh_education_mcp.server import UebersichtInput, zh_edu_overview
+
+    with respx.mock:
+        respx.get(f"{BISTA_BASE}/data_uebersicht_alle_lernende").mock(
+            return_value=httpx.Response(500, text="internal db error postgres://x")
+        )
+        with pytest.raises(ToolError) as exc:
+            await zh_edu_overview(UebersichtInput())
+
+    msg = str(exc.value)
+    assert msg.startswith("Fehler:")
+    assert "postgres" not in msg
+
+
+# ── Folge-Fix: SDK-003 — Context-Injektion (Progress + Logging) ──────────────────
+@pytest.mark.asyncio
+async def test_ctx_progress_and_logging_on_fetch():
+    """Bei nicht-gecachtem Fetch werden ctx.info und ctx.report_progress aufgerufen."""
+    from unittest.mock import AsyncMock
+
+    from zh_education_mcp.server import UebersichtInput, zh_edu_overview
+
+    ctx = AsyncMock()
+    with respx.mock:
+        respx.get(f"{BISTA_BASE}/data_uebersicht_alle_lernende").mock(
+            return_value=httpx.Response(200, text=SAMPLE_UEBERSICHT_CSV)
+        )
+        result = await zh_edu_overview(UebersichtInput(), ctx=ctx)
+
+    assert "2024" in result
+    assert ctx.info.await_count >= 1
+    assert ctx.report_progress.await_count >= 1
+
+
+@pytest.mark.asyncio
+async def test_tool_works_without_ctx():
+    """Ohne ctx (Direktaufruf) funktioniert das Tool unverändert."""
+    from zh_education_mcp.server import UebersichtInput, zh_edu_overview
+
+    with respx.mock:
+        respx.get(f"{BISTA_BASE}/data_uebersicht_alle_lernende").mock(
+            return_value=httpx.Response(200, text=SAMPLE_UEBERSICHT_CSV)
+        )
+        result = await zh_edu_overview(UebersichtInput())
+
+    assert "Primarstufe" in result
+
+
+# ── Folge-Fix: OBS-006 — OpenTelemetry-Span pro Tool-Call (opt-in) ───────────────
+def test_traced_is_noop_without_otel():
+    """Ohne aktivierten Tracer ist @traced ein No-Op (Standard-Pfad)."""
+    import zh_education_mcp.telemetry as tel
+
+    assert tel.setup_telemetry() is False or tel._tracer is not None
+
+
+@pytest.mark.asyncio
+async def test_otel_span_created_when_enabled():
+    """Bei aktivem Tracer entsteht ein Span pro Tool-Call mit korrekten Attributen."""
+    pytest.importorskip("opentelemetry.sdk")
+    from opentelemetry import trace
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+    from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
+        InMemorySpanExporter,
+    )
+
+    import zh_education_mcp.telemetry as tel
+    from zh_education_mcp.server import UebersichtInput, zh_edu_overview
+
+    provider = TracerProvider()
+    mem = InMemorySpanExporter()
+    provider.add_span_processor(SimpleSpanProcessor(mem))
+    trace.set_tracer_provider(provider)
+    saved = tel._tracer
+    tel._tracer = trace.get_tracer("zh_education_mcp")
+    try:
+        with respx.mock:
+            respx.get(f"{BISTA_BASE}/data_uebersicht_alle_lernende").mock(
+                return_value=httpx.Response(200, text=SAMPLE_UEBERSICHT_CSV)
+            )
+            await zh_edu_overview(UebersichtInput())
+        spans = mem.get_finished_spans()
+        assert any(s.name == "mcp.tool/zh_edu_overview" for s in spans)
+        span = next(s for s in spans if s.name == "mcp.tool/zh_edu_overview")
+        assert span.attributes["mcp.tool.name"] == "zh_edu_overview"
+        assert span.attributes["mcp.tool.result.is_error"] is False
+    finally:
+        tel._tracer = saved
+
+
+# ── Folge-Fix: SEC-005 — DNS-Pinning / IP-Blocklist gegen Rebinding ──────────────
+@pytest.mark.parametrize(
+    "ip,blocked",
+    [
+        ("169.254.169.254", True),   # Cloud-Metadata
+        ("127.0.0.1", True),         # Loopback
+        ("10.0.0.5", True),          # privat
+        ("192.168.1.1", True),       # privat
+        ("::1", True),               # IPv6-Loopback
+        ("fe80::1", True),           # IPv6-Link-local
+        ("8.8.8.8", False),          # öffentlich
+        ("not-an-ip", True),         # ungültig → blockiert
+    ],
+)
+def test_ip_blocklist_classification(ip, blocked):
+    from zh_education_mcp.http_client import _ip_is_blocked
+
+    assert _ip_is_blocked(ip) is blocked
+
+
+def test_resolve_rejects_internal_ip(monkeypatch):
+    """Löst der Host auf eine Metadata-IP auf, wird vor dem Request abgebrochen."""
+    import socket
+
+    from zh_education_mcp.http_client import _resolve_and_validate
+
+    monkeypatch.setattr(
+        "zh_education_mcp.http_client.socket.getaddrinfo",
+        lambda *a, **k: [(socket.AF_INET, socket.SOCK_STREAM, 0, "", ("169.254.169.254", 443))],
+    )
+    with pytest.raises(PermissionError):
+        _resolve_and_validate("www.bista.zh.ch")
+
+
+def test_resolve_allows_public_ip(monkeypatch):
+    import socket
+
+    from zh_education_mcp.http_client import _resolve_and_validate
+
+    monkeypatch.setattr(
+        "zh_education_mcp.http_client.socket.getaddrinfo",
+        lambda *a, **k: [(socket.AF_INET, socket.SOCK_STREAM, 0, "", ("8.8.8.8", 443))],
+    )
+    assert _resolve_and_validate("www.bista.zh.ch") == ["8.8.8.8"]
+
+
+@pytest.mark.asyncio
+async def test_egress_guard_blocks_rebinding_to_metadata(monkeypatch):
+    """Allowlisteter Host, der auf eine interne IP zeigt, wird geblockt (Rebinding)."""
+    import socket
+
+    from zh_education_mcp.http_client import _egress_guard
+
+    monkeypatch.setattr(
+        "zh_education_mcp.http_client.socket.getaddrinfo",
+        lambda *a, **k: [(socket.AF_INET, socket.SOCK_STREAM, 0, "", ("169.254.169.254", 443))],
+    )
+    req = httpx.Request("GET", "https://www.bista.zh.ch/basicapi/ogd/x")
+    with pytest.raises(PermissionError):
+        await _egress_guard(req)

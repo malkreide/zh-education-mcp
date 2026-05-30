@@ -54,25 +54,32 @@ def _handle_error(e: Exception) -> str:
     return "Fehler: Unerwarteter interner Fehler. Bitte später erneut versuchen."
 
 
-async def _fetch_csv(endpoint: str) -> list[dict]:
-    """Holt CSV-Daten von einem BISTA-Endpunkt und gibt eine Liste von Dicts zurück."""
+async def _fetch_csv(endpoint: str, ctx: object | None = None) -> list[dict]:
+    """Holt CSV-Daten von einem BISTA-Endpunkt und gibt eine Liste von Dicts zurück.
+
+    Optionaler ``ctx`` (FastMCP Context) erlaubt Progress-Reports und
+    client-seitiges Logging bei nicht-gecachten Fetches (SDK-003).
+    """
     cached = _cache_get(endpoint)
     if cached is not None:
         log.debug("cache_hit", endpoint=endpoint, rows=len(cached))
+        if ctx is not None:
+            await ctx.info(f"Cache-Treffer für {endpoint} ({len(cached)} Zeilen).")
         return cached
 
     start = time.perf_counter()
+    if ctx is not None:
+        await ctx.info(f"Lade BISTA-Datensatz {endpoint} …")
+        await ctx.report_progress(0.0, 1.0, "Abruf gestartet")
     resp = await _http_get(f"{BISTA_API}/{endpoint}")
     resp.raise_for_status()
     reader = csv.DictReader(io.StringIO(resp.text))
     rows = list(reader)
     _cache_set(endpoint, rows)
-    log.info(
-        "fetch_ok",
-        endpoint=endpoint,
-        rows=len(rows),
-        ms=round((time.perf_counter() - start) * 1000),
-    )
+    ms = round((time.perf_counter() - start) * 1000)
+    log.info("fetch_ok", endpoint=endpoint, rows=len(rows), ms=ms)
+    if ctx is not None:
+        await ctx.report_progress(1.0, 1.0, f"{len(rows)} Zeilen geladen")
     return rows
 
 

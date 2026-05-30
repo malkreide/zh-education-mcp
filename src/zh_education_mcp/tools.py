@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import json
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.fastmcp.exceptions import ToolError
 from starlette.responses import JSONResponse
 
 from .config import settings
@@ -29,6 +30,7 @@ from .models import (
     WohnortTrendInput,
 )
 from .provenance import PROVENANCE, ResponseFormat, _envelope, _not_found, _source_footer
+from .telemetry import traced
 
 # ─────────────────────────── Server ────────────────────────────────────────────
 # stateless_http=True ⇒ kein serverseitiger Session-State ⇒ horizontal
@@ -101,7 +103,10 @@ def lizenz_resource() -> str:
         "openWorldHint": True,
     },
 )
-async def zh_edu_list_schulgemeinden(params: ListSchulgemeindensInput) -> str:
+@traced("zh_edu_list_schulgemeinden")
+async def zh_edu_list_schulgemeinden(
+    params: ListSchulgemeindensInput, ctx: Context | None = None
+) -> str:
     """Listet alle Schulgemeinden und Schulkreise im Kanton Zürich auf.
 
     Extrahiert die eindeutigen Schulgemeinden aus den Sekundarstufe-I-Daten.
@@ -116,7 +121,7 @@ async def zh_edu_list_schulgemeinden(params: ListSchulgemeindensInput) -> str:
         str: Alphabetische Liste aller Schulgemeinden.
     """
     try:
-        rows = await _fetch_csv(EP_SEK1)
+        rows = await _fetch_csv(EP_SEK1, ctx)
         gemeinden = sorted({r["Schulgemeinde"] for r in rows if r.get("Schulgemeinde")})
 
         if params.suchbegriff:
@@ -142,7 +147,9 @@ async def zh_edu_list_schulgemeinden(params: ListSchulgemeindensInput) -> str:
         return "\n".join(lines) + _source_footer()
 
     except Exception as e:
-        return _handle_error(e)
+        # Execution-Error sauber als isError:true tool-result signalisieren
+        # (OBS-001). Die Meldung ist bereits sanitisiert (OBS-002).
+        raise ToolError(_handle_error(e)) from e
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -159,7 +166,10 @@ async def zh_edu_list_schulgemeinden(params: ListSchulgemeindensInput) -> str:
         "openWorldHint": True,
     },
 )
-async def zh_edu_schulkreis_trend(params: SchulkreisTrendInput) -> str:
+@traced("zh_edu_schulkreis_trend")
+async def zh_edu_schulkreis_trend(
+    params: SchulkreisTrendInput, ctx: Context | None = None
+) -> str:
     """Zeigt den Lernenden-Trend für eine Schulgemeinde / einen Schulkreis.
 
     Liefert die Entwicklung der Lernendenzahlen (Sek I) über die letzten N Jahre,
@@ -175,7 +185,7 @@ async def zh_edu_schulkreis_trend(params: SchulkreisTrendInput) -> str:
         str: Trend-Übersicht mit Jahresvergleich und Gesamtentwicklung.
     """
     try:
-        rows = await _fetch_csv(EP_SEK1)
+        rows = await _fetch_csv(EP_SEK1, ctx)
         matched = _filter_rows(rows, Schulgemeinde=params.schulgemeinde)
 
         if not matched:
@@ -236,7 +246,9 @@ async def zh_edu_schulkreis_trend(params: SchulkreisTrendInput) -> str:
         return "\n".join(lines) + _source_footer()
 
     except Exception as e:
-        return _handle_error(e)
+        # Execution-Error sauber als isError:true tool-result signalisieren
+        # (OBS-001). Die Meldung ist bereits sanitisiert (OBS-002).
+        raise ToolError(_handle_error(e)) from e
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -253,7 +265,10 @@ async def zh_edu_schulkreis_trend(params: SchulkreisTrendInput) -> str:
         "openWorldHint": True,
     },
 )
-async def zh_edu_overview(params: UebersichtInput) -> str:
+@traced("zh_edu_overview")
+async def zh_edu_overview(
+    params: UebersichtInput, ctx: Context | None = None
+) -> str:
     """Gibt eine kantonsweite Übersicht aller Lernenden nach Stufe, Typ und Geschlecht.
 
     Datenquelle: BISTA-Übersicht aller Lernenden im Kanton Zürich.
@@ -269,7 +284,7 @@ async def zh_edu_overview(params: UebersichtInput) -> str:
         str: Übersichtstabelle mit Lernenden nach Stufe und Schultyp.
     """
     try:
-        rows = await _fetch_csv(EP_UEBERSICHT)
+        rows = await _fetch_csv(EP_UEBERSICHT, ctx)
 
         jahr = params.jahr or _latest_year(rows)
         if jahr is None:
@@ -304,7 +319,9 @@ async def zh_edu_overview(params: UebersichtInput) -> str:
         return "\n".join(lines) + _source_footer()
 
     except Exception as e:
-        return _handle_error(e)
+        # Execution-Error sauber als isError:true tool-result signalisieren
+        # (OBS-001). Die Meldung ist bereits sanitisiert (OBS-002).
+        raise ToolError(_handle_error(e)) from e
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -321,7 +338,10 @@ async def zh_edu_overview(params: UebersichtInput) -> str:
         "openWorldHint": True,
     },
 )
-async def zh_edu_sek1_profil(params: Sek1ProfilInput) -> str:
+@traced("zh_edu_sek1_profil")
+async def zh_edu_sek1_profil(
+    params: Sek1ProfilInput, ctx: Context | None = None
+) -> str:
     """Zeigt das Sek-I-Profil einer Schulgemeinde (Anforderungstypen A/B/C).
 
     Schlüsselt die Lernenden der Sekundarstufe I nach Anforderungstyp auf:
@@ -337,7 +357,7 @@ async def zh_edu_sek1_profil(params: Sek1ProfilInput) -> str:
         str: Profil mit Anzahl und Anteil pro Anforderungstyp.
     """
     try:
-        rows = await _fetch_csv(EP_SEK1)
+        rows = await _fetch_csv(EP_SEK1, ctx)
         matched = _filter_rows(rows, Schulgemeinde=params.schulgemeinde)
 
         if not matched:
@@ -379,7 +399,9 @@ async def zh_edu_sek1_profil(params: Sek1ProfilInput) -> str:
         return "\n".join(lines) + _source_footer()
 
     except Exception as e:
-        return _handle_error(e)
+        # Execution-Error sauber als isError:true tool-result signalisieren
+        # (OBS-001). Die Meldung ist bereits sanitisiert (OBS-002).
+        raise ToolError(_handle_error(e)) from e
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -396,7 +418,10 @@ async def zh_edu_sek1_profil(params: Sek1ProfilInput) -> str:
         "openWorldHint": True,
     },
 )
-async def zh_edu_staatsangehoerigkeiten(params: StaatsangehoerigkeitInput) -> str:
+@traced("zh_edu_staatsangehoerigkeiten")
+async def zh_edu_staatsangehoerigkeiten(
+    params: StaatsangehoerigkeitInput, ctx: Context | None = None
+) -> str:
     """Zeigt die Staatsangehörigkeitsstruktur der Lernenden einer Schulgemeinde.
 
     Liefert die häufigsten Nationalitäten der Schüler·innen in einer
@@ -413,7 +438,7 @@ async def zh_edu_staatsangehoerigkeiten(params: StaatsangehoerigkeitInput) -> st
         str: Rangliste der häufigsten Nationalitäten mit Anteil.
     """
     try:
-        rows = await _fetch_csv(EP_NAT_REGIONAL)
+        rows = await _fetch_csv(EP_NAT_REGIONAL, ctx)
         matched = _filter_rows(rows, Schulgemeinde=params.schulgemeinde)
 
         if not matched:
@@ -456,7 +481,9 @@ async def zh_edu_staatsangehoerigkeiten(params: StaatsangehoerigkeitInput) -> st
         return "\n".join(lines) + _source_footer()
 
     except Exception as e:
-        return _handle_error(e)
+        # Execution-Error sauber als isError:true tool-result signalisieren
+        # (OBS-001). Die Meldung ist bereits sanitisiert (OBS-002).
+        raise ToolError(_handle_error(e)) from e
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -473,7 +500,10 @@ async def zh_edu_staatsangehoerigkeiten(params: StaatsangehoerigkeitInput) -> st
         "openWorldHint": True,
     },
 )
-async def zh_edu_maturitaetsquote(params: MaturitaetsquoteInput) -> str:
+@traced("zh_edu_maturitaetsquote")
+async def zh_edu_maturitaetsquote(
+    params: MaturitaetsquoteInput, ctx: Context | None = None
+) -> str:
     """Zeigt die gymnasiale Maturitätsquote nach Gemeinde, Bezirk und Kanton.
 
     Die Maturitätsquote berechnet sich als Anteil der gymnasialen Abschlüsse
@@ -489,7 +519,7 @@ async def zh_edu_maturitaetsquote(params: MaturitaetsquoteInput) -> str:
         str: Maturitätsquoten-Tabelle mit Abschlüssen und Quote pro Gemeinde.
     """
     try:
-        rows = await _fetch_csv(EP_MATURITAET)
+        rows = await _fetch_csv(EP_MATURITAET, ctx)
 
         filtered = rows
         if params.gemeinde:
@@ -532,7 +562,9 @@ async def zh_edu_maturitaetsquote(params: MaturitaetsquoteInput) -> str:
         return "\n".join(lines) + _source_footer()
 
     except Exception as e:
-        return _handle_error(e)
+        # Execution-Error sauber als isError:true tool-result signalisieren
+        # (OBS-001). Die Meldung ist bereits sanitisiert (OBS-002).
+        raise ToolError(_handle_error(e)) from e
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -549,7 +581,10 @@ async def zh_edu_maturitaetsquote(params: MaturitaetsquoteInput) -> str:
         "openWorldHint": True,
     },
 )
-async def zh_edu_wohnort_trend(params: WohnortTrendInput) -> str:
+@traced("zh_edu_wohnort_trend")
+async def zh_edu_wohnort_trend(
+    params: WohnortTrendInput, ctx: Context | None = None
+) -> str:
     """Zeigt die Entwicklung der Lernendenzahlen nach Wohnort (Bezirk/Gemeinde).
 
     Basiert auf dem Wohnort der Lernenden, nicht dem Schulort.
@@ -566,7 +601,7 @@ async def zh_edu_wohnort_trend(params: WohnortTrendInput) -> str:
         str: Trend-Tabelle der Lernenden nach Wohnort und Stufe.
     """
     try:
-        rows = await _fetch_csv(EP_WOHNORT)
+        rows = await _fetch_csv(EP_WOHNORT, ctx)
 
         filtered = rows
         if params.gebiet:
@@ -619,7 +654,9 @@ async def zh_edu_wohnort_trend(params: WohnortTrendInput) -> str:
         return "\n".join(lines) + _source_footer()
 
     except Exception as e:
-        return _handle_error(e)
+        # Execution-Error sauber als isError:true tool-result signalisieren
+        # (OBS-001). Die Meldung ist bereits sanitisiert (OBS-002).
+        raise ToolError(_handle_error(e)) from e
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -636,7 +673,10 @@ async def zh_edu_wohnort_trend(params: WohnortTrendInput) -> str:
         "openWorldHint": True,
     },
 )
-async def zh_edu_mittelschulen(params: MittelschulenInput) -> str:
+@traced("zh_edu_mittelschulen")
+async def zh_edu_mittelschulen(
+    params: MittelschulenInput, ctx: Context | None = None
+) -> str:
     """Zeigt Statistiken zu Mittelschulen (Gymnasium, FMS, HMS) im Kanton Zürich.
 
     Umfasst Lernendenzahlen nach Mittelschultyp, Bildungsart, Geschlecht
@@ -652,7 +692,7 @@ async def zh_edu_mittelschulen(params: MittelschulenInput) -> str:
         str: Mittelschulstatistiken nach Typ und Bildungsart.
     """
     try:
-        rows = await _fetch_csv(EP_MITTELSCHULEN)
+        rows = await _fetch_csv(EP_MITTELSCHULEN, ctx)
 
         jahr = params.jahr or _latest_year(rows)
         if jahr is None:
@@ -692,4 +732,6 @@ async def zh_edu_mittelschulen(params: MittelschulenInput) -> str:
         return "\n".join(lines) + _source_footer()
 
     except Exception as e:
-        return _handle_error(e)
+        # Execution-Error sauber als isError:true tool-result signalisieren
+        # (OBS-001). Die Meldung ist bereits sanitisiert (OBS-002).
+        raise ToolError(_handle_error(e)) from e
