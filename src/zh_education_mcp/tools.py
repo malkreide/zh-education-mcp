@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 
 from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp.exceptions import ToolError
 from starlette.responses import JSONResponse
 
 from .config import settings
@@ -142,7 +143,9 @@ async def zh_edu_list_schulgemeinden(params: ListSchulgemeindensInput) -> str:
         return "\n".join(lines) + _source_footer()
 
     except Exception as e:
-        return _handle_error(e)
+        # Execution-Error sauber als isError:true tool-result signalisieren
+        # (OBS-001). Die Meldung ist bereits sanitisiert (OBS-002).
+        raise ToolError(_handle_error(e)) from e
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -236,7 +239,9 @@ async def zh_edu_schulkreis_trend(params: SchulkreisTrendInput) -> str:
         return "\n".join(lines) + _source_footer()
 
     except Exception as e:
-        return _handle_error(e)
+        # Execution-Error sauber als isError:true tool-result signalisieren
+        # (OBS-001). Die Meldung ist bereits sanitisiert (OBS-002).
+        raise ToolError(_handle_error(e)) from e
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -304,7 +309,9 @@ async def zh_edu_overview(params: UebersichtInput) -> str:
         return "\n".join(lines) + _source_footer()
 
     except Exception as e:
-        return _handle_error(e)
+        # Execution-Error sauber als isError:true tool-result signalisieren
+        # (OBS-001). Die Meldung ist bereits sanitisiert (OBS-002).
+        raise ToolError(_handle_error(e)) from e
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -379,7 +386,9 @@ async def zh_edu_sek1_profil(params: Sek1ProfilInput) -> str:
         return "\n".join(lines) + _source_footer()
 
     except Exception as e:
-        return _handle_error(e)
+        # Execution-Error sauber als isError:true tool-result signalisieren
+        # (OBS-001). Die Meldung ist bereits sanitisiert (OBS-002).
+        raise ToolError(_handle_error(e)) from e
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -456,7 +465,9 @@ async def zh_edu_staatsangehoerigkeiten(params: StaatsangehoerigkeitInput) -> st
         return "\n".join(lines) + _source_footer()
 
     except Exception as e:
-        return _handle_error(e)
+        # Execution-Error sauber als isError:true tool-result signalisieren
+        # (OBS-001). Die Meldung ist bereits sanitisiert (OBS-002).
+        raise ToolError(_handle_error(e)) from e
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -532,7 +543,9 @@ async def zh_edu_maturitaetsquote(params: MaturitaetsquoteInput) -> str:
         return "\n".join(lines) + _source_footer()
 
     except Exception as e:
-        return _handle_error(e)
+        # Execution-Error sauber als isError:true tool-result signalisieren
+        # (OBS-001). Die Meldung ist bereits sanitisiert (OBS-002).
+        raise ToolError(_handle_error(e)) from e
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -619,7 +632,9 @@ async def zh_edu_wohnort_trend(params: WohnortTrendInput) -> str:
         return "\n".join(lines) + _source_footer()
 
     except Exception as e:
-        return _handle_error(e)
+        # Execution-Error sauber als isError:true tool-result signalisieren
+        # (OBS-001). Die Meldung ist bereits sanitisiert (OBS-002).
+        raise ToolError(_handle_error(e)) from e
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -692,4 +707,6 @@ async def zh_edu_mittelschulen(params: MittelschulenInput) -> str:
         return "\n".join(lines) + _source_footer()
 
     except Exception as e:
-        return _handle_error(e)
+        # Execution-Error sauber als isError:true tool-result signalisieren
+        # (OBS-001). Die Meldung ist bereits sanitisiert (OBS-002).
+        raise ToolError(_handle_error(e)) from e

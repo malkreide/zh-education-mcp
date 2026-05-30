@@ -455,3 +455,23 @@ def test_lizenz_resource_has_attribution():
 
     payload = json.loads(lizenz_resource())
     assert payload["license"] == "CC BY 4.0"
+
+
+# ── Folge-Fix: OBS-001 — Execution-Errors als isError:true (ToolError) ───────────
+@pytest.mark.asyncio
+async def test_execution_error_raises_toolerror():
+    """Ein Backend-Fehler wird als ToolError (isError:true) signalisiert, sanitisiert."""
+    from mcp.server.fastmcp.exceptions import ToolError
+
+    from zh_education_mcp.server import UebersichtInput, zh_edu_overview
+
+    with respx.mock:
+        respx.get(f"{BISTA_BASE}/data_uebersicht_alle_lernende").mock(
+            return_value=httpx.Response(500, text="internal db error postgres://x")
+        )
+        with pytest.raises(ToolError) as exc:
+            await zh_edu_overview(UebersichtInput())
+
+    msg = str(exc.value)
+    assert msg.startswith("Fehler:")
+    assert "postgres" not in msg
