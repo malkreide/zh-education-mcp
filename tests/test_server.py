@@ -161,3 +161,83 @@ async def test_live_bista_api_letzi():
 
     assert "Letzi" in result
     assert "Sek A" in result or "Sek B" in result
+
+
+# ── Welle 3: Egress-Guard (SEC-004 / SEC-021) ───────────────────────────────────
+@pytest.mark.asyncio
+async def test_egress_guard_blocks_foreign_host():
+    """Ein nicht-allowlisteter Host (z.B. Cloud-Metadata) wird blockiert."""
+    from zh_education_mcp.server import _egress_guard
+
+    req = httpx.Request("GET", "https://169.254.169.254/latest/meta-data/")
+    with pytest.raises(PermissionError):
+        await _egress_guard(req)
+
+
+@pytest.mark.asyncio
+async def test_egress_guard_blocks_non_https():
+    """HTTP (ohne TLS) wird auch für den erlaubten Host blockiert."""
+    from zh_education_mcp.server import _egress_guard
+
+    req = httpx.Request("GET", "http://www.bista.zh.ch/basicapi/ogd/x")
+    with pytest.raises(PermissionError):
+        await _egress_guard(req)
+
+
+@pytest.mark.asyncio
+async def test_egress_guard_allows_bista():
+    """Der allowlistete BISTA-Host über HTTPS wird durchgelassen."""
+    from zh_education_mcp.server import _egress_guard
+
+    req = httpx.Request("GET", "https://www.bista.zh.ch/basicapi/ogd/x")
+    assert await _egress_guard(req) is None
+
+
+# ── Welle 3: strikte Input-Validierung (SEC-018) ────────────────────────────────
+def test_strict_rejects_out_of_range():
+    """letzte_n_jahre ausserhalb [1,30] wird abgelehnt."""
+    import pydantic
+
+    from zh_education_mcp.server import SchulkreisTrendInput
+
+    with pytest.raises(pydantic.ValidationError):
+        SchulkreisTrendInput(schulgemeinde="Letzi", letzte_n_jahre=99)
+
+
+def test_strict_rejects_unknown_field():
+    """Unbekannte Felder werden durch extra='forbid' abgelehnt."""
+    import pydantic
+
+    from zh_education_mcp.server import UebersichtInput
+
+    with pytest.raises(pydantic.ValidationError):
+        UebersichtInput(unbekannt="x")
+
+
+def test_strict_rejects_too_long_string():
+    """Strings über max_length werden abgelehnt."""
+    import pydantic
+
+    from zh_education_mcp.server import Sek1ProfilInput
+
+    with pytest.raises(pydantic.ValidationError):
+        Sek1ProfilInput(schulgemeinde="x" * 500)
+
+
+def test_response_format_accepts_string():
+    """response_format akzeptiert weiterhin den JSON-String (MCP-Client)."""
+    from zh_education_mcp.server import ResponseFormat, UebersichtInput
+
+    assert UebersichtInput(response_format="json").response_format == ResponseFormat.JSON
+
+
+# ── Welle 3: Fehler-Sanitisierung (OBS-002) ─────────────────────────────────────
+def test_handle_error_does_not_leak_internals():
+    """Generische Exceptions geben keine str(e)-Internals an den Client."""
+    from zh_education_mcp.server import _handle_error
+
+    msg = _handle_error(RuntimeError("geheime DB-Verbindung postgres://secret@host"))
+    assert "secret" not in msg
+    assert "postgres" not in msg
+    assert "RuntimeError" not in msg
+    assert msg.startswith("Fehler:")

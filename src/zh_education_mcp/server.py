@@ -25,6 +25,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 import httpx
+import structlog
 from mcp.server.fastmcp import FastMCP
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -73,6 +74,31 @@ class AppContext:
     client: httpx.AsyncClient
 
 
+# Egress-Allow-List (SEC-004/SEC-021): nur diese Hosts dürfen kontaktiert werden,
+# als unveränderliches frozenset im Code (nicht zur Laufzeit mutierbar).
+ALLOWED_HOSTS: frozenset[str] = frozenset({"www.bista.zh.ch"})
+
+
+async def _egress_guard(request: httpx.Request) -> None:
+    """Prüft JEDEN ausgehenden Request (inkl. Redirect-Hops) gegen die
+    Allow-List und erzwingt HTTPS. Blockt Redirect-basierte SSRF, da der Hook
+    auch bei umgeleiteten Requests feuert (SEC-004)."""
+    if request.url.scheme != "https" or request.url.host not in ALLOWED_HOSTS:
+        raise PermissionError(
+            f"Egress blockiert: {request.url.scheme}://{request.url.host} "
+            f"nicht in Allow-List {sorted(ALLOWED_HOSTS)}"
+        )
+
+
+def _new_client() -> httpx.AsyncClient:
+    """Erzeugt einen HTTP-Client mit Egress-Guard und einheitlichem Timeout."""
+    return httpx.AsyncClient(
+        follow_redirects=True,
+        timeout=HTTP_TIMEOUT,
+        event_hooks={"request": [_egress_guard]},
+    )
+
+
 # Lifespan-verwalteter, wiederverwendeter HTTP-Client (Connection-Pooling).
 # Kein httpx.AsyncClient pro Tool-Call mehr (siehe Audit SDK-001).
 _client: httpx.AsyncClient | None = None
@@ -87,7 +113,7 @@ def _get_client() -> httpx.AsyncClient:
     """
     global _client
     if _client is None or _client.is_closed:
-        _client = httpx.AsyncClient(follow_redirects=True, timeout=HTTP_TIMEOUT)
+        _client = _new_client()
     return _client
 
 
@@ -95,7 +121,7 @@ def _get_client() -> httpx.AsyncClient:
 async def lifespan(_server: FastMCP) -> AsyncIterator[AppContext]:
     """Erzeugt den geteilten HTTP-Client beim Start, schliesst ihn beim Stop."""
     global _client
-    _client = httpx.AsyncClient(follow_redirects=True, timeout=HTTP_TIMEOUT)
+    _client = _new_client()
     try:
         yield AppContext(client=_client)
     finally:
@@ -135,6 +161,21 @@ EP_WOHNORT       = "data_lernende_nach_wohngemeinde"
 EP_MITTELSCHULEN = "data_lernende_mittelschulen"
 
 
+# ─────────────────────────── Logging (strukturiert, stderr) ────────────────────
+# JSON-Logs auf stderr — stdout bleibt dem MCP-Protokoll vorbehalten (OBS-004),
+# strukturiert mit Severity-Stufen (OBS-003). Niemals print() im Tool-Code.
+structlog.configure(
+    processors=[
+        structlog.processors.add_log_level,
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.JSONRenderer(),
+    ],
+    logger_factory=structlog.WriteLoggerFactory(file=sys.stderr),
+    cache_logger_on_first_use=True,
+)
+log = structlog.get_logger("zh_education_mcp")
+
+
 # ─────────────────────────── Enum ──────────────────────────────────────────────
 class ResponseFormat(StrEnum):
     """Ausgabeformat für Tool-Antworten."""
@@ -167,7 +208,14 @@ async def _http_get(url: str, params: dict | None = None) -> httpx.Response:
 
 
 def _handle_error(e: Exception) -> str:
-    """Einheitliche, handlungsorientierte Fehlermeldungen (auf Deutsch)."""
+    """Einheitliche, handlungsorientierte Fehlermeldungen (auf Deutsch).
+
+    Der **originale** Fehler wird strukturiert ins stderr-Log geschrieben
+    (OBS-002); an den LLM/Client geht ausschliesslich eine sanitisierte
+    Meldung ohne Internals (keine Stacktraces, keine ``str(e)``-Leaks).
+    """
+    log.error("tool_error", error_type=type(e).__name__, error=str(e))
+
     if isinstance(e, httpx.HTTPStatusError):
         code = e.response.status_code
         if code == 404:
@@ -179,20 +227,28 @@ def _handle_error(e: Exception) -> str:
         return f"Fehler: API-Anfrage fehlgeschlagen (HTTP {code})."
     if isinstance(e, httpx.TimeoutException):
         return "Fehler: Zeitüberschreitung. Der Dienst antwortet nicht. Bitte erneut versuchen."
-    return f"Fehler: Unerwarteter Fehler ({type(e).__name__}): {e}"
+    if isinstance(e, PermissionError):
+        return "Fehler: Ausgehende Anfrage durch Egress-Policy blockiert."
+    return "Fehler: Unerwarteter interner Fehler. Bitte später erneut versuchen."
 
 
 async def _fetch_csv(endpoint: str) -> list[dict]:
     """Holt CSV-Daten von einem BISTA-Endpunkt und gibt eine Liste von Dicts zurück."""
     cached = _cache_get(endpoint)
     if cached is not None:
+        log.debug("cache_hit", endpoint=endpoint, rows=len(cached))
         return cached
 
+    start = time.perf_counter()
     resp = await _http_get(f"{BISTA_API}/{endpoint}")
     resp.raise_for_status()
     reader = csv.DictReader(io.StringIO(resp.text))
     rows = list(reader)
     _cache_set(endpoint, rows)
+    log.info(
+        "fetch_ok", endpoint=endpoint, rows=len(rows),
+        ms=round((time.perf_counter() - start) * 1000),
+    )
     return rows
 
 
@@ -225,18 +281,18 @@ def _latest_year(rows: list[dict], year_field: str = "Jahr") -> int | None:
 
 class ListSchulgemeindensInput(BaseModel):
     """Input für die Auflistung aller Schulgemeinden."""
-    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True, extra="forbid")
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True, extra="forbid", strict=True)
 
     suchbegriff: str | None = Field(
         default=None, max_length=200,
         description="Optionaler Suchbegriff zum Filtern (z. B. 'Zürich', 'Letzi', 'Adliswil')"
     )
-    response_format: ResponseFormat = Field(default=ResponseFormat.MARKDOWN)
+    response_format: ResponseFormat = Field(default=ResponseFormat.MARKDOWN, strict=False)
 
 
 class SchulkreisTrendInput(BaseModel):
     """Input für Schulkreis-Trend-Abfrage."""
-    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True, extra="forbid")
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True, extra="forbid", strict=True)
 
     schulgemeinde: str = Field(
         ..., min_length=1, max_length=200,
@@ -246,7 +302,7 @@ class SchulkreisTrendInput(BaseModel):
         default=5, ge=1, le=30,
         description="Anzahl der letzten Jahre (Standard: 5)"
     )
-    response_format: ResponseFormat = Field(default=ResponseFormat.MARKDOWN)
+    response_format: ResponseFormat = Field(default=ResponseFormat.MARKDOWN, strict=False)
 
     @field_validator("schulgemeinde")
     @classmethod
@@ -258,7 +314,7 @@ class SchulkreisTrendInput(BaseModel):
 
 class UebersichtInput(BaseModel):
     """Input für die kantonsweite Übersicht."""
-    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True, extra="forbid")
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True, extra="forbid", strict=True)
 
     jahr: int | None = Field(
         default=None,
@@ -268,12 +324,12 @@ class UebersichtInput(BaseModel):
         default=None, max_length=100,
         description="Schulstufe filtern (z. B. 'Primarstufe', 'Sekundarstufe I')"
     )
-    response_format: ResponseFormat = Field(default=ResponseFormat.MARKDOWN)
+    response_format: ResponseFormat = Field(default=ResponseFormat.MARKDOWN, strict=False)
 
 
 class Sek1ProfilInput(BaseModel):
     """Input für das Sek-I-Profil einer Schulgemeinde."""
-    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True, extra="forbid")
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True, extra="forbid", strict=True)
 
     schulgemeinde: str = Field(
         ..., min_length=1, max_length=200,
@@ -283,7 +339,7 @@ class Sek1ProfilInput(BaseModel):
         default=None,
         description="Bestimmtes Jahr (leer = aktuellstes)"
     )
-    response_format: ResponseFormat = Field(default=ResponseFormat.MARKDOWN)
+    response_format: ResponseFormat = Field(default=ResponseFormat.MARKDOWN, strict=False)
 
     @field_validator("schulgemeinde")
     @classmethod
@@ -295,7 +351,7 @@ class Sek1ProfilInput(BaseModel):
 
 class StaatsangehoerigkeitInput(BaseModel):
     """Input für Staatsangehörigkeitsabfrage."""
-    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True, extra="forbid")
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True, extra="forbid", strict=True)
 
     schulgemeinde: str = Field(
         ..., min_length=1, max_length=200,
@@ -309,12 +365,12 @@ class StaatsangehoerigkeitInput(BaseModel):
         default=None,
         description="Bestimmtes Jahr (leer = aktuellstes)"
     )
-    response_format: ResponseFormat = Field(default=ResponseFormat.MARKDOWN)
+    response_format: ResponseFormat = Field(default=ResponseFormat.MARKDOWN, strict=False)
 
 
 class MaturitaetsquoteInput(BaseModel):
     """Input für Maturitätsquoten-Abfrage."""
-    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True, extra="forbid")
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True, extra="forbid", strict=True)
 
     gemeinde: str | None = Field(
         default=None, max_length=200,
@@ -324,12 +380,12 @@ class MaturitaetsquoteInput(BaseModel):
         default=None, max_length=200,
         description="Bezirk filtern (z. B. 'Zürich', 'Dietikon')"
     )
-    response_format: ResponseFormat = Field(default=ResponseFormat.MARKDOWN)
+    response_format: ResponseFormat = Field(default=ResponseFormat.MARKDOWN, strict=False)
 
 
 class WohnortTrendInput(BaseModel):
     """Input für wohnortbasierte Lernenden-Trends."""
-    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True, extra="forbid")
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True, extra="forbid", strict=True)
 
     gebiet: str | None = Field(
         default=None, max_length=200,
@@ -343,12 +399,12 @@ class WohnortTrendInput(BaseModel):
         default=5, ge=1, le=30,
         description="Anzahl der letzten Jahre (Standard: 5)"
     )
-    response_format: ResponseFormat = Field(default=ResponseFormat.MARKDOWN)
+    response_format: ResponseFormat = Field(default=ResponseFormat.MARKDOWN, strict=False)
 
 
 class MittelschulenInput(BaseModel):
     """Input für Mittelschulstatistiken."""
-    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True, extra="forbid")
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True, extra="forbid", strict=True)
 
     mittelschultyp: str | None = Field(
         default=None, max_length=100,
@@ -358,7 +414,7 @@ class MittelschulenInput(BaseModel):
         default=None,
         description="Bestimmtes Jahr (leer = aktuellstes)"
     )
-    response_format: ResponseFormat = Field(default=ResponseFormat.MARKDOWN)
+    response_format: ResponseFormat = Field(default=ResponseFormat.MARKDOWN, strict=False)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
