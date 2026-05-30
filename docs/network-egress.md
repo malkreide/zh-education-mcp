@@ -35,9 +35,19 @@ Im Cloud-Deployment ist ergänzend eine Netzwerk-Egress-Kontrolle zu setzen
 Neue Datenquellen werden durch Ergänzen von `ALLOWED_HOSTS` im Code (per PR,
 mit Review) freigeschaltet — bewusst kein Runtime-Mechanismus.
 
-## Bekannte Resterisiken
+## DNS-Validierung (SEC-005)
 
-- **DNS-Pinning (SEC-005):** Aktuell kein explizites IP-Pinning gegen TOCTOU;
-  das Restrisiko ist durch die Single-Host-Allow-List (ein vertrauenswürdiger
-  Host) gering. Vollständiges Pinning (resolved-IP-Transport) ist als
-  Folge-Härtung vorgemerkt.
+Vor jedem ausgehenden Request löst `_resolve_and_validate()` den Host **einmal**
+auf und prüft **alle** resolved IPs gegen eine Blocklist (private, loopback,
+link-local inkl. Cloud-Metadata `169.254.169.254`, multicast, reserved,
+unspecified). Löst der erlaubte Host auf eine interne IP auf (DNS-Rebinding),
+wird vor dem Verbindungsaufbau hart abgebrochen.
+
+## Bekanntes Restrisiko
+
+- **Socket-Level-Pinning:** Die Validierung prüft die aufgelösten IPs, verbindet
+  danach aber über den Standard-httpx-Resolver (ein theoretisches TOCTOU-Fenster
+  zwischen Validierungs-Lookup und Connect-Lookup bleibt). Das Restrisiko ist
+  durch die Single-Host-Allow-List (ein vertrauenswürdiger Host) gering. Echtes
+  Socket-Pinning (Connect zur exakt validierten IP) ist als Folge-Härtung
+  vorgemerkt; es konnte in der CI-Sandbox nicht live verifiziert werden.

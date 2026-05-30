@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import ipaddress
+import socket
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -9,21 +11,65 @@ from dataclasses import dataclass
 import httpx
 
 from .constants import HTTP_TIMEOUT
+from .logging_setup import log
 
 # Egress-Allow-List (SEC-004/SEC-021): nur diese Hosts dürfen kontaktiert werden,
 # als unveränderliches frozenset im Code (nicht zur Laufzeit mutierbar).
 ALLOWED_HOSTS: frozenset[str] = frozenset({"www.bista.zh.ch"})
 
 
+def _ip_is_blocked(ip: str) -> bool:
+    """True, wenn die IP nicht öffentlich routbar ist (private/loopback/
+    link-local/metadata/reserved) — gegen SSRF auf interne Ziele (SEC-005)."""
+    try:
+        addr = ipaddress.ip_address(ip)
+    except ValueError:
+        return True
+    return (
+        addr.is_private
+        or addr.is_loopback
+        or addr.is_link_local  # deckt 169.254.169.254 (Cloud-Metadata) ab
+        or addr.is_multicast
+        or addr.is_reserved
+        or addr.is_unspecified
+    )
+
+
+def _resolve_and_validate(host: str) -> list[str]:
+    """Löst ``host`` auf und validiert ALLE resolved IPs gegen die Blocklist.
+
+    Wird vor dem Request aufgerufen (DNS-Pinning-Kern gegen TOCTOU/DNS-Rebinding,
+    SEC-005): Auflösung erfolgt einmal hier; eine aufgelöste interne IP führt zum
+    harten Abbruch, bevor überhaupt verbunden wird. Gibt die geprüften IPs zurück.
+    """
+    try:
+        infos = socket.getaddrinfo(host, 443, proto=socket.IPPROTO_TCP)
+    except OSError as exc:
+        raise PermissionError(f"DNS-Auflösung für {host} fehlgeschlagen: {exc}") from exc
+
+    ips = sorted({info[4][0] for info in infos})
+    blocked = [ip for ip in ips if _ip_is_blocked(ip)]
+    if blocked:
+        log.warning("egress_ip_blocked", host=host, blocked=blocked, resolved=ips)
+        raise PermissionError(
+            f"Egress blockiert: {host} löst auf interne/nicht-routbare IP(s) auf {blocked}"
+        )
+    return ips
+
+
 async def _egress_guard(request: httpx.Request) -> None:
-    """Prüft JEDEN ausgehenden Request (inkl. Redirect-Hops) gegen die
-    Allow-List und erzwingt HTTPS. Blockt Redirect-basierte SSRF, da der Hook
-    auch bei umgeleiteten Requests feuert (SEC-004)."""
+    """Prüft JEDEN ausgehenden Request (inkl. Redirect-Hops, SEC-004):
+
+    1. HTTPS erzwingen, Host gegen Allow-List (SEC-004/021).
+    2. Host auflösen und alle resolved IPs gegen die Blocklist prüfen
+       (SEC-005): blockt DNS-Rebinding/Metadata-IPs vor dem Verbindungsaufbau.
+    """
     if request.url.scheme != "https" or request.url.host not in ALLOWED_HOSTS:
         raise PermissionError(
             f"Egress blockiert: {request.url.scheme}://{request.url.host} "
             f"nicht in Allow-List {sorted(ALLOWED_HOSTS)}"
         )
+    _resolve_and_validate(request.url.host)
 
 
 def _new_client() -> httpx.AsyncClient:
