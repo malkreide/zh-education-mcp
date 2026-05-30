@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 from mcp.server.fastmcp import FastMCP
 from starlette.responses import JSONResponse
 
@@ -26,7 +28,7 @@ from .models import (
     UebersichtInput,
     WohnortTrendInput,
 )
-from .provenance import ResponseFormat, _envelope, _not_found, _source_footer
+from .provenance import PROVENANCE, ResponseFormat, _envelope, _not_found, _source_footer
 
 # ─────────────────────────── Server ────────────────────────────────────────────
 # stateless_http=True ⇒ kein serverseitiger Session-State ⇒ horizontal
@@ -43,6 +45,46 @@ mcp = FastMCP(
 async def health(_request):  # noqa: ANN001 — Starlette Request
     """Health-Probe für Load-Balancer und Docker HEALTHCHECK (SCALE-004)."""
     return JSONResponse({"status": "ok", "service": "zh-education-mcp"})
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  RESOURCES — zweites MCP-Primitiv neben Tools (ARCH-008)
+# ══════════════════════════════════════════════════════════════════════════════
+
+@mcp.resource(
+    "zh-edu://datenquellen",
+    name="BISTA-Datenquellen",
+    description="Katalog der verfügbaren BISTA-Datensätze und ihrer Tool-Zuordnung.",
+    mime_type="application/json",
+)
+def datenquellen_resource() -> str:
+    """Statischer Katalog der angebundenen BISTA-Datensätze (read-only Resource)."""
+    return json.dumps(
+        {
+            "source": PROVENANCE,
+            "datasets": [
+                {"endpoint": EP_SEK1, "tools": ["zh_edu_list_schulgemeinden", "zh_edu_schulkreis_trend", "zh_edu_sek1_profil"]},
+                {"endpoint": EP_UEBERSICHT, "tools": ["zh_edu_overview"]},
+                {"endpoint": EP_NAT_REGIONAL, "tools": ["zh_edu_staatsangehoerigkeiten"]},
+                {"endpoint": EP_MATURITAET, "tools": ["zh_edu_maturitaetsquote"]},
+                {"endpoint": EP_WOHNORT, "tools": ["zh_edu_wohnort_trend"]},
+                {"endpoint": EP_MITTELSCHULEN, "tools": ["zh_edu_mittelschulen"]},
+            ],
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
+
+
+@mcp.resource(
+    "zh-edu://lizenz",
+    name="Lizenz & Attribution",
+    description="Quelle, Lizenz (CC BY 4.0) und Modifikationshinweis für alle Daten.",
+    mime_type="application/json",
+)
+def lizenz_resource() -> str:
+    """Provenance-/Lizenz-Information als read-only Resource (CH-004)."""
+    return json.dumps(PROVENANCE, ensure_ascii=False, indent=2)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
