@@ -475,3 +475,37 @@ async def test_execution_error_raises_toolerror():
     msg = str(exc.value)
     assert msg.startswith("Fehler:")
     assert "postgres" not in msg
+
+
+# ── Folge-Fix: SDK-003 — Context-Injektion (Progress + Logging) ──────────────────
+@pytest.mark.asyncio
+async def test_ctx_progress_and_logging_on_fetch():
+    """Bei nicht-gecachtem Fetch werden ctx.info und ctx.report_progress aufgerufen."""
+    from unittest.mock import AsyncMock
+
+    from zh_education_mcp.server import UebersichtInput, zh_edu_overview
+
+    ctx = AsyncMock()
+    with respx.mock:
+        respx.get(f"{BISTA_BASE}/data_uebersicht_alle_lernende").mock(
+            return_value=httpx.Response(200, text=SAMPLE_UEBERSICHT_CSV)
+        )
+        result = await zh_edu_overview(UebersichtInput(), ctx=ctx)
+
+    assert "2024" in result
+    assert ctx.info.await_count >= 1
+    assert ctx.report_progress.await_count >= 1
+
+
+@pytest.mark.asyncio
+async def test_tool_works_without_ctx():
+    """Ohne ctx (Direktaufruf) funktioniert das Tool unverändert."""
+    from zh_education_mcp.server import UebersichtInput, zh_edu_overview
+
+    with respx.mock:
+        respx.get(f"{BISTA_BASE}/data_uebersicht_alle_lernende").mock(
+            return_value=httpx.Response(200, text=SAMPLE_UEBERSICHT_CSV)
+        )
+        result = await zh_edu_overview(UebersichtInput())
+
+    assert "Primarstufe" in result
