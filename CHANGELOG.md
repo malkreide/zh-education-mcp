@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-05-30
+
+Production-Hardening nach MCP-Best-Practice-Audit (Skill v1.0.0, Catalog-Hash `091f446b`).
+Audit-Verifikation: **42/42 Checks bestanden · 0 Findings · production-ready** (Run `2026-05-30T072745-Z-zh-education-mcp`).
+
 ### Added
 - ENV-basierte Konfiguration (`MCP_TRANSPORT`/`MCP_HOST`/`MCP_PORT`/`MCP_CORS_ORIGINS`/`MCP_STATELESS_HTTP`)
 - `lifespan`-verwalteter, gepoolter HTTP-Client (Connection-Pooling)
