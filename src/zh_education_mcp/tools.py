@@ -30,6 +30,7 @@ from .models import (
     WohnortTrendInput,
 )
 from .provenance import PROVENANCE, ResponseFormat, _envelope, _not_found, _source_footer
+from .telemetry import traced
 
 # ─────────────────────────── Server ────────────────────────────────────────────
 # stateless_http=True ⇒ kein serverseitiger Session-State ⇒ horizontal
@@ -102,6 +103,7 @@ def lizenz_resource() -> str:
         "openWorldHint": True,
     },
 )
+@traced("zh_edu_list_schulgemeinden")
 async def zh_edu_list_schulgemeinden(
     params: ListSchulgemeindensInput, ctx: Context | None = None
 ) -> str:
@@ -164,6 +166,7 @@ async def zh_edu_list_schulgemeinden(
         "openWorldHint": True,
     },
 )
+@traced("zh_edu_schulkreis_trend")
 async def zh_edu_schulkreis_trend(
     params: SchulkreisTrendInput, ctx: Context | None = None
 ) -> str:
@@ -262,6 +265,7 @@ async def zh_edu_schulkreis_trend(
         "openWorldHint": True,
     },
 )
+@traced("zh_edu_overview")
 async def zh_edu_overview(
     params: UebersichtInput, ctx: Context | None = None
 ) -> str:
@@ -334,6 +338,7 @@ async def zh_edu_overview(
         "openWorldHint": True,
     },
 )
+@traced("zh_edu_sek1_profil")
 async def zh_edu_sek1_profil(
     params: Sek1ProfilInput, ctx: Context | None = None
 ) -> str:
@@ -413,6 +418,7 @@ async def zh_edu_sek1_profil(
         "openWorldHint": True,
     },
 )
+@traced("zh_edu_staatsangehoerigkeiten")
 async def zh_edu_staatsangehoerigkeiten(
     params: StaatsangehoerigkeitInput, ctx: Context | None = None
 ) -> str:
@@ -494,6 +500,7 @@ async def zh_edu_staatsangehoerigkeiten(
         "openWorldHint": True,
     },
 )
+@traced("zh_edu_maturitaetsquote")
 async def zh_edu_maturitaetsquote(
     params: MaturitaetsquoteInput, ctx: Context | None = None
 ) -> str:
@@ -574,6 +581,7 @@ async def zh_edu_maturitaetsquote(
         "openWorldHint": True,
     },
 )
+@traced("zh_edu_wohnort_trend")
 async def zh_edu_wohnort_trend(
     params: WohnortTrendInput, ctx: Context | None = None
 ) -> str:
@@ -665,6 +673,7 @@ async def zh_edu_wohnort_trend(
         "openWorldHint": True,
     },
 )
+@traced("zh_edu_mittelschulen")
 async def zh_edu_mittelschulen(
     params: MittelschulenInput, ctx: Context | None = None
 ) -> str:

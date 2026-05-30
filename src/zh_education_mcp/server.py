@@ -134,6 +134,10 @@ def main() -> None:
     CLI-Flags ``--http``/``--sse``/``--port``/``--host`` überschreiben die ENV-Werte
     (Abwärtskompatibilität mit der README-Doku). Default bleibt lokal: stdio + Loopback.
     """
+    from .telemetry import setup_telemetry
+
+    setup_telemetry()  # opt-in via MCP_OTEL_ENABLED; No-Op sonst (OBS-006)
+
     transport = settings.transport
     host = settings.host
     port = settings.port

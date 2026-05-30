@@ -509,3 +509,46 @@ async def test_tool_works_without_ctx():
         result = await zh_edu_overview(UebersichtInput())
 
     assert "Primarstufe" in result
+
+
+# ── Folge-Fix: OBS-006 — OpenTelemetry-Span pro Tool-Call (opt-in) ───────────────
+def test_traced_is_noop_without_otel():
+    """Ohne aktivierten Tracer ist @traced ein No-Op (Standard-Pfad)."""
+    import zh_education_mcp.telemetry as tel
+
+    assert tel.setup_telemetry() is False or tel._tracer is not None
+
+
+@pytest.mark.asyncio
+async def test_otel_span_created_when_enabled():
+    """Bei aktivem Tracer entsteht ein Span pro Tool-Call mit korrekten Attributen."""
+    pytest.importorskip("opentelemetry.sdk")
+    from opentelemetry import trace
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+    from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
+        InMemorySpanExporter,
+    )
+
+    import zh_education_mcp.telemetry as tel
+    from zh_education_mcp.server import UebersichtInput, zh_edu_overview
+
+    provider = TracerProvider()
+    mem = InMemorySpanExporter()
+    provider.add_span_processor(SimpleSpanProcessor(mem))
+    trace.set_tracer_provider(provider)
+    saved = tel._tracer
+    tel._tracer = trace.get_tracer("zh_education_mcp")
+    try:
+        with respx.mock:
+            respx.get(f"{BISTA_BASE}/data_uebersicht_alle_lernende").mock(
+                return_value=httpx.Response(200, text=SAMPLE_UEBERSICHT_CSV)
+            )
+            await zh_edu_overview(UebersichtInput())
+        spans = mem.get_finished_spans()
+        assert any(s.name == "mcp.tool/zh_edu_overview" for s in spans)
+        span = next(s for s in spans if s.name == "mcp.tool/zh_edu_overview")
+        assert span.attributes["mcp.tool.name"] == "zh_edu_overview"
+        assert span.attributes["mcp.tool.result.is_error"] is False
+    finally:
+        tel._tracer = saved

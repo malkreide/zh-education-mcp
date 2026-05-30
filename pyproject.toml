@@ -46,6 +46,12 @@ dev = [
     "respx>=0.21.0",
     "ruff>=0.4.0",
 ]
+# Optionales OpenTelemetry-Tracing (OBS-006). Aktivierung via MCP_OTEL_ENABLED=true.
+otel = [
+    "opentelemetry-sdk>=1.20.0",
+    "opentelemetry-exporter-otlp-proto-http>=1.20.0",
+    "opentelemetry-instrumentation-httpx>=0.40b0",
+]
 
 [project.scripts]
 zh-education-mcp = "zh_education_mcp.server:main"
