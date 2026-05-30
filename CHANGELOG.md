@@ -17,11 +17,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Egress-Allow-List (`frozenset` + httpx-Hook, HTTPS-Zwang, Redirect-Schutz)
 - Strukturiertes JSON-Logging auf stderr (`structlog`)
 - Strikte Input-Validierung (`strict=True`) auf allen Tool-Modellen
-- Dokumentation: `docs/deployment.md`, `docs/network-egress.md`, `docs/security.md`, `docs/secret-management.md`, `docs/roadmap.md`, `CONTRIBUTING.de.md`
+- Context-Injektion (`ctx`) mit Progress-Reports und Logging bei Tool-Calls
+- Optionales OpenTelemetry-Tracing pro Tool-Call (`[otel]`-Extra, `MCP_OTEL_ENABLED`)
+- DNS-Auflösung + IP-Blocklist-Validierung vor jedem Egress (Anti-Rebinding)
+- Dokumentation: `docs/deployment.md`, `docs/network-egress.md`, `docs/security.md`, `docs/secret-management.md`, `docs/roadmap.md`, `docs/accepted-risks.md`, `CONTRIBUTING.de.md`
 - Dependabot für monatliche Dependency-Updates
 
 ### Changed
 - Fehlerbehandlung sanitisiert: Originalfehler nur ins stderr-Log, Client erhält generische Meldung
+- Execution-Errors werden als `isError:true` (ToolError) statt als Erfolgs-String signalisiert
 - README: Cloud-Endpoint korrigiert (`/mcp` statt `/sse`), Protokoll-/Phasen-Sektion ergänzt
 
 ### Security
