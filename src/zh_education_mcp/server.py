@@ -47,6 +47,20 @@ class Settings(BaseSettings):
     host: str = "127.0.0.1"
     port: int = 8000
 
+    # Stateless HTTP: read-only Server hält keinen Session-State → jeder
+    # Load-Balancer (Round-Robin) funktioniert ohne Sticky Sessions (SCALE-002/003).
+    stateless_http: bool = True
+    json_response: bool = False
+
+    # CORS-Origins für Browser-Clients (z. B. claude.ai). Komma-separiert via
+    # MCP_CORS_ORIGINS. Default deckt den dokumentierten Browser-Use-Case ab;
+    # in Produktion explizit auf die genutzten Origins setzen (keine Wildcard).
+    cors_origins: str = "https://claude.ai"
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
 
 settings = Settings()
 
@@ -90,7 +104,22 @@ async def lifespan(_server: FastMCP) -> AsyncIterator[AppContext]:
 
 
 # ─────────────────────────── Server ────────────────────────────────────────────
-mcp = FastMCP("zh_education_mcp", lifespan=lifespan)
+# stateless_http=True ⇒ kein serverseitiger Session-State ⇒ horizontal
+# skalierbar ohne Sticky Sessions (SCALE-002/003), passend zu read-only Daten.
+mcp = FastMCP(
+    "zh_education_mcp",
+    lifespan=lifespan,
+    stateless_http=settings.stateless_http,
+    json_response=settings.json_response,
+)
+
+
+@mcp.custom_route("/health", methods=["GET"])
+async def health(_request):  # noqa: ANN001 — Starlette Request
+    """Health-Probe für Load-Balancer und Docker HEALTHCHECK (SCALE-004)."""
+    from starlette.responses import JSONResponse
+
+    return JSONResponse({"status": "ok", "service": "zh-education-mcp"})
 
 # ─────────────────────────── Konstanten ────────────────────────────────────────
 BISTA_API    = "https://www.bista.zh.ch/basicapi/ogd"
@@ -941,9 +970,31 @@ def main() -> None:
     mcp.settings.port = port
 
     if transport in ("streamable-http", "sse"):
-        mcp.run(transport=transport)
+        _run_http(transport, host, port)
     else:
         mcp.run(transport="stdio")
+
+
+def _run_http(transport: str, host: str, port: int) -> None:
+    """Startet einen HTTP-Transport mit CORS-Middleware (SDK-004).
+
+    Die Starlette-App wird um ``CORSMiddleware`` gewickelt, die ``Mcp-Session-Id``
+    explizit exponiert und akzeptiert (sonst brechen Browser-Clients wie claude.ai).
+    Origins kommen aus ``MCP_CORS_ORIGINS`` — keine Wildcard in Produktion.
+    """
+    import uvicorn
+    from starlette.middleware.cors import CORSMiddleware
+
+    app = mcp.sse_app() if transport == "sse" else mcp.streamable_http_app()
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origin_list,
+        allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+        allow_headers=["Content-Type", "Authorization", "Mcp-Session-Id", "Last-Event-ID"],
+        expose_headers=["Mcp-Session-Id"],
+        max_age=86_400,
+    )
+    uvicorn.run(app, host=host, port=port, log_level="info")
 
 
 if __name__ == "__main__":
