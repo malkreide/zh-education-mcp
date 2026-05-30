@@ -204,13 +204,25 @@ resource limits): [`docs/deployment.md`](docs/deployment.md).
 zh-education-mcp/
 ├── src/zh_education_mcp/
 │   ├── __init__.py              # Package
-│   └── server.py                # 8 tools, cache, dual transport
+│   ├── config.py               # ENV settings (MCP_*)
+│   ├── constants.py            # API base, endpoints, timeouts
+│   ├── logging_setup.py        # structured stderr logging
+│   ├── provenance.py           # response envelope, license attribution
+│   ├── http_client.py          # egress guard, connection pool, lifespan
+│   ├── data.py                 # cache, CSV fetch, filters, error handling
+│   ├── models.py               # Pydantic input models
+│   ├── tools.py                # FastMCP instance, 8 tools, 2 resources
+│   └── server.py               # thin composition layer + entrypoint
 ├── tests/
 │   └── test_server.py           # Unit tests (mocked HTTP with respx)
+├── docs/                        # deployment, security, egress, roadmap, …
+├── Dockerfile                   # multi-stage, non-root, healthcheck
+├── docker-compose.yml           # resource limits, read-only rootfs
 ├── .github/workflows/ci.yml     # GitHub Actions (Python 3.11/3.12/3.13)
+├── .github/dependabot.yml       # monthly dependency updates
 ├── pyproject.toml
 ├── CHANGELOG.md
-├── CONTRIBUTING.md
+├── CONTRIBUTING.md              # + CONTRIBUTING.de.md
 ├── LICENSE
 ├── README.md                    # This file (English)
 └── README.de.md                 # German version
