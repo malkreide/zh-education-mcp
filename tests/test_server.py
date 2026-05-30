@@ -241,3 +241,69 @@ def test_handle_error_does_not_leak_internals():
     assert "postgres" not in msg
     assert "RuntimeError" not in msg
     assert msg.startswith("Fehler:")
+
+
+# ── Welle 4b: Response-Envelope & Provenance (SDK-002, ARCH-007, CH-004) ─────────
+def test_envelope_carries_source_and_count():
+    """JSON-Envelope enthält source/provenance/license/match_type/count."""
+    import json
+
+    from zh_education_mcp.server import SOURCE_LICENSE, _envelope
+
+    payload = json.loads(_envelope([{"x": 1}, {"x": 2}], schulgemeinde="Letzi"))
+    assert payload["source"]
+    assert payload["provenance"]["license"] == SOURCE_LICENSE
+    assert payload["match_type"] == "exact"
+    assert payload["count"] == 2
+    assert payload["schulgemeinde"] == "Letzi"
+    assert payload["results"] == [{"x": 1}, {"x": 2}]
+
+
+def test_not_found_json_has_match_type_none():
+    """Not-Found im JSON-Format liefert match_type='none' + suggestions."""
+    import json
+
+    from zh_education_mcp.server import ResponseFormat, _not_found
+
+    out = _not_found(
+        ResponseFormat.JSON, "nicht gefunden", suggestions=["Zürich-Letzi"]
+    )
+    payload = json.loads(out)
+    assert payload["match_type"] == "none"
+    assert payload["suggestions"] == ["Zürich-Letzi"]
+    assert payload["count"] == 0
+
+
+@pytest.mark.asyncio
+async def test_markdown_output_has_source_footer():
+    """Markdown-Tool-Antworten tragen die CC-BY-Quellen-Fusszeile (CH-004)."""
+    from zh_education_mcp.server import ListSchulgemeindensInput, zh_edu_list_schulgemeinden
+
+    with respx.mock:
+        respx.get(f"{BISTA_BASE}/data_lernende_sekundarstufe_i_anforderungstyp").mock(
+            return_value=httpx.Response(200, text=SAMPLE_SEK1_CSV)
+        )
+        result = await zh_edu_list_schulgemeinden(ListSchulgemeindensInput())
+
+    assert "CC BY 4.0" in result
+    assert "BISTA" in result
+
+
+@pytest.mark.asyncio
+async def test_json_tool_output_is_enveloped():
+    """Ein Tool im JSON-Format liefert den strukturierten Envelope."""
+    import json
+
+    from zh_education_mcp.server import ListSchulgemeindensInput, zh_edu_list_schulgemeinden
+
+    with respx.mock:
+        respx.get(f"{BISTA_BASE}/data_lernende_sekundarstufe_i_anforderungstyp").mock(
+            return_value=httpx.Response(200, text=SAMPLE_SEK1_CSV)
+        )
+        params = ListSchulgemeindensInput(response_format="json")
+        result = await zh_edu_list_schulgemeinden(params)
+
+    payload = json.loads(result)
+    assert payload["source"]
+    assert "Zürich-Letzi" in payload["results"]
+    assert payload["count"] >= 1

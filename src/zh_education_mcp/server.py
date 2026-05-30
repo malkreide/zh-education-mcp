@@ -152,6 +152,63 @@ BISTA_API    = "https://www.bista.zh.ch/basicapi/ogd"
 HTTP_TIMEOUT = 30.0
 CACHE_TTL    = 86_400  # 24 Stunden — passend zum jährlichen Stichtag
 
+# Provenance / Lizenz-Attribution (CH-004, ARCH-007). Wird jeder Tool-Antwort
+# beigegeben — Markdown als Fusszeile, JSON als `source`-Feld im Envelope.
+SOURCE_NAME    = "Bildungsstatistik Kanton Zürich (BISTA)"
+SOURCE_URL     = "https://pub.bista.zh.ch"
+SOURCE_LICENSE = "CC BY 4.0"
+PROVENANCE = {
+    "name": SOURCE_NAME,
+    "url": SOURCE_URL,
+    "license": SOURCE_LICENSE,
+    "modified": "Aggregiert/umformatiert durch zh-education-mcp",
+}
+
+
+def _source_footer() -> str:
+    """Markdown-Fusszeile mit Quelle, Lizenz und Modifikationshinweis (CC BY 4.0)."""
+    return (
+        f"\n\n---\n*Quelle: {SOURCE_NAME} — {SOURCE_URL} · Lizenz: {SOURCE_LICENSE} · "
+        f"aggregiert/umformatiert durch zh-education-mcp.*"
+    )
+
+
+def _not_found(
+    fmt: ResponseFormat,
+    message: str,
+    *,
+    suggestions: list[str] | None = None,
+    **extra: object,
+) -> str:
+    """Einheitliche Not-Found-Antwort mit ``match_type`` (ARCH-003).
+
+    Markdown: actionable Hinweis-Text. JSON: Envelope mit ``match_type="none"``
+    und optionalen ``suggestions`` — der LLM kann so strukturiert reagieren.
+    """
+    if fmt == ResponseFormat.JSON:
+        return _envelope(
+            [], match_type="none", suggestions=suggestions or [], **extra
+        )
+    return message
+
+
+def _envelope(results: object, *, match_type: str = "exact", **extra: object) -> str:
+    """Konsistenter JSON-Response-Envelope (SDK-002, ARCH-003, CH-004).
+
+    Felder: ``source``/``provenance``, ``match_type`` (exact|fuzzy|none),
+    ``count`` (falls results eine Liste ist), ``results`` plus optionale Extras.
+    """
+    payload: dict[str, object] = {
+        "source": SOURCE_NAME,
+        "provenance": PROVENANCE,
+        "match_type": match_type,
+    }
+    if isinstance(results, list):
+        payload["count"] = len(results)
+    payload.update(extra)
+    payload["results"] = results
+    return json.dumps(payload, ensure_ascii=False, indent=2)
+
 # Endpunkte
 EP_SEK1          = "data_lernende_sekundarstufe_i_anforderungstyp"
 EP_UEBERSICHT    = "data_uebersicht_alle_lernende"
@@ -457,8 +514,11 @@ async def zh_edu_list_schulgemeinden(params: ListSchulgemeindensInput) -> str:
             return "Keine Schulgemeinden gefunden für den angegebenen Suchbegriff."
 
         if params.response_format == ResponseFormat.JSON:
-            return json.dumps({"total": len(gemeinden), "schulgemeinden": gemeinden},
-                              ensure_ascii=False, indent=2)
+            return _envelope(
+                gemeinden,
+                match_type="exact" if gemeinden else "none",
+                filter=params.suchbegriff,
+            )
 
         lines = ["# Schulgemeinden Kanton Zürich\n"]
         if params.suchbegriff:
@@ -466,7 +526,7 @@ async def zh_edu_list_schulgemeinden(params: ListSchulgemeindensInput) -> str:
         lines.append(f"Gefunden: **{len(gemeinden)}** Schulgemeinden\n")
         for g in gemeinden:
             lines.append(f"- {g}")
-        return "\n".join(lines)
+        return "\n".join(lines) + _source_footer()
 
     except Exception as e:
         return _handle_error(e)
@@ -507,11 +567,14 @@ async def zh_edu_schulkreis_trend(params: SchulkreisTrendInput) -> str:
 
         if not matched:
             gemeinden = sorted({r["Schulgemeinde"] for r in rows if r.get("Schulgemeinde")})
-            suggestions = [g for g in gemeinden if params.schulgemeinde.lower()[:4] in g.lower()]
-            hint = f" Meinten Sie: {', '.join(suggestions[:5])}?" if suggestions else ""
-            return (
+            suggestions = [g for g in gemeinden if params.schulgemeinde.lower()[:4] in g.lower()][:5]
+            hint = f" Meinten Sie: {', '.join(suggestions)}?" if suggestions else ""
+            return _not_found(
+                params.response_format,
                 f"Schulgemeinde '{params.schulgemeinde}' nicht gefunden.{hint}\n\n"
-                f"Tipp: Verwende `zh_edu_list_schulgemeinden`, um gültige Namen zu sehen."
+                f"Tipp: Verwende `zh_edu_list_schulgemeinden`, um gültige Namen zu sehen.",
+                suggestions=suggestions,
+                schulgemeinde=params.schulgemeinde,
             )
 
         latest = _latest_year(matched)
@@ -523,8 +586,7 @@ async def zh_edu_schulkreis_trend(params: SchulkreisTrendInput) -> str:
         filtered.sort(key=lambda r: (int(r.get("Jahr", 0)), r.get("Anforderungstyp", "")))
 
         if params.response_format == ResponseFormat.JSON:
-            return json.dumps({"schulgemeinde": params.schulgemeinde, "daten": filtered},
-                              ensure_ascii=False, indent=2)
+            return _envelope(filtered, schulgemeinde=params.schulgemeinde)
 
         lines = [f"# Trend {params.schulgemeinde} ({cutoff}–{latest})\n"]
 
@@ -554,7 +616,7 @@ async def zh_edu_schulkreis_trend(params: SchulkreisTrendInput) -> str:
             sign = "+" if diff >= 0 else ""
             lines.append(f"\n**Veränderung {years_list[0]}→{years_list[-1]}:** {sign}{diff} Lernende")
 
-        return "\n".join(lines)
+        return "\n".join(lines) + _source_footer()
 
     except Exception as e:
         return _handle_error(e)
@@ -604,7 +666,7 @@ async def zh_edu_overview(params: UebersichtInput) -> str:
             return f"Keine Daten für Jahr {jahr} gefunden."
 
         if params.response_format == ResponseFormat.JSON:
-            return json.dumps({"jahr": jahr, "daten": filtered}, ensure_ascii=False, indent=2)
+            return _envelope(filtered, jahr=jahr)
 
         lines = [f"# Übersicht Lernende Kanton Zürich — {jahr}\n"]
 
@@ -622,7 +684,7 @@ async def zh_edu_overview(params: UebersichtInput) -> str:
             total += by_stufe[stufe]
         lines.append(f"| **Total** | **{total:,}** |")
 
-        return "\n".join(lines)
+        return "\n".join(lines) + _source_footer()
 
     except Exception as e:
         return _handle_error(e)
@@ -676,8 +738,7 @@ async def zh_edu_sek1_profil(params: Sek1ProfilInput) -> str:
             return f"Keine Daten für {params.schulgemeinde} im Jahr {jahr}."
 
         if params.response_format == ResponseFormat.JSON:
-            return json.dumps({"schulgemeinde": params.schulgemeinde, "jahr": jahr,
-                              "profil": year_data}, ensure_ascii=False, indent=2)
+            return _envelope(year_data, schulgemeinde=params.schulgemeinde, jahr=jahr)
 
         lines = [f"# Sek-I-Profil {params.schulgemeinde} — {jahr}\n"]
         lines.append("| Anforderungstyp | Lernende | Anteil |")
@@ -691,7 +752,7 @@ async def zh_edu_sek1_profil(params: Sek1ProfilInput) -> str:
             lines.append(f"| {typ} | {anzahl:,} | {pct} |")
         lines.append(f"| **Total** | **{total:,}** | **100%** |")
 
-        return "\n".join(lines)
+        return "\n".join(lines) + _source_footer()
 
     except Exception as e:
         return _handle_error(e)
@@ -746,9 +807,9 @@ async def zh_edu_staatsangehoerigkeiten(params: StaatsangehoerigkeitInput) -> st
         top = year_data[: params.top_n]
 
         if params.response_format == ResponseFormat.JSON:
-            return json.dumps({"schulgemeinde": params.schulgemeinde, "jahr": jahr,
-                              "top_n": params.top_n, "nationalitaeten": top},
-                              ensure_ascii=False, indent=2)
+            return _envelope(
+                top, schulgemeinde=params.schulgemeinde, jahr=jahr, top_n=params.top_n
+            )
 
         total = sum(int(r.get("Anzahl", 0)) for r in year_data)
         lines = [f"# Staatsangehörigkeiten {params.schulgemeinde} — {jahr}\n"]
@@ -764,7 +825,7 @@ async def zh_edu_staatsangehoerigkeiten(params: StaatsangehoerigkeitInput) -> st
             pct = f"{anzahl / total * 100:.1f}%" if total > 0 else "—"
             lines.append(f"| {i} | {nat} | {iso2} | {anzahl:,} | {pct} |")
 
-        return "\n".join(lines)
+        return "\n".join(lines) + _source_footer()
 
     except Exception as e:
         return _handle_error(e)
@@ -814,7 +875,7 @@ async def zh_edu_maturitaetsquote(params: MaturitaetsquoteInput) -> str:
         filtered.sort(key=lambda r: float(r.get("Maturitaetsquote_gymnasial", 0)), reverse=True)
 
         if params.response_format == ResponseFormat.JSON:
-            return json.dumps({"daten": filtered}, ensure_ascii=False, indent=2)
+            return _envelope(filtered)
 
         lines = ["# Gymnasiale Maturitätsquote Kanton Zürich\n"]
         if params.gemeinde:
@@ -838,7 +899,7 @@ async def zh_edu_maturitaetsquote(params: MaturitaetsquoteInput) -> str:
                 quote_str = f"{quote}%"
             lines.append(f"| {gem} | {bez} | {abschl} | {pop} | {quote_str} |")
 
-        return "\n".join(lines)
+        return "\n".join(lines) + _source_footer()
 
     except Exception as e:
         return _handle_error(e)
@@ -897,7 +958,7 @@ async def zh_edu_wohnort_trend(params: WohnortTrendInput) -> str:
             return f"Keine Daten im Zeitraum {cutoff}–{latest} gefunden."
 
         if params.response_format == ResponseFormat.JSON:
-            return json.dumps({"daten": filtered}, ensure_ascii=False, indent=2)
+            return _envelope(filtered)
 
         lines = [f"# Lernende nach Wohnort ({cutoff}–{latest})\n"]
         if params.gebiet:
@@ -923,7 +984,7 @@ async def zh_edu_wohnort_trend(params: WohnortTrendInput) -> str:
                 f"\n**Veränderung {years_list[0]}→{years_list[-1]}:** {sign}{diff} Lernende"
             )
 
-        return "\n".join(lines)
+        return "\n".join(lines) + _source_footer()
 
     except Exception as e:
         return _handle_error(e)
@@ -973,7 +1034,7 @@ async def zh_edu_mittelschulen(params: MittelschulenInput) -> str:
             return f"Keine Mittelschuldaten für Jahr {jahr} gefunden."
 
         if params.response_format == ResponseFormat.JSON:
-            return json.dumps({"jahr": jahr, "daten": filtered}, ensure_ascii=False, indent=2)
+            return _envelope(filtered, jahr=jahr)
 
         lines = [f"# Mittelschulen Kanton Zürich — {jahr}\n"]
         if params.mittelschultyp:
@@ -992,7 +1053,7 @@ async def zh_edu_mittelschulen(params: MittelschulenInput) -> str:
             total += by_typ[typ]
         lines.append(f"| **Total** | **{total:,}** |")
 
-        return "\n".join(lines)
+        return "\n".join(lines) + _source_footer()
 
     except Exception as e:
         return _handle_error(e)
