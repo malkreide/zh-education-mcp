@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- ENV-basierte Konfiguration (`MCP_TRANSPORT`/`MCP_HOST`/`MCP_PORT`/`MCP_CORS_ORIGINS`/`MCP_STATELESS_HTTP`)
+- `lifespan`-verwalteter, gepoolter HTTP-Client (Connection-Pooling)
+- CORS-Middleware für HTTP-Transporte (exponiert `Mcp-Session-Id`)
+- Stateless HTTP (kein Sticky-Session-Routing nötig)
+- Multi-Stage-`Dockerfile` (non-root, HEALTHCHECK), `docker-compose.yml` mit Resource-Limits
+- `/health`-Endpoint für Load-Balancer- und Container-Probes
+- Egress-Allow-List (`frozenset` + httpx-Hook, HTTPS-Zwang, Redirect-Schutz)
+- Strukturiertes JSON-Logging auf stderr (`structlog`)
+- Strikte Input-Validierung (`strict=True`) auf allen Tool-Modellen
+- Dokumentation: `docs/deployment.md`, `docs/network-egress.md`, `docs/security.md`, `docs/secret-management.md`, `docs/roadmap.md`, `CONTRIBUTING.de.md`
+- Dependabot für monatliche Dependency-Updates
+
+### Changed
+- Fehlerbehandlung sanitisiert: Originalfehler nur ins stderr-Log, Client erhält generische Meldung
+- README: Cloud-Endpoint korrigiert (`/mcp` statt `/sse`), Protokoll-/Phasen-Sektion ergänzt
+
+### Security
+- SSRF-/Egress-Härtung, Container-Sandboxing, CORS, strikte Validierung (siehe Audit-Findings W1–W3)
+
+### Phase
+- Phase 1 (read-only) bestätigt; siehe `docs/roadmap.md`
+
 ## [0.1.0] - 2026-04-01
 
 ### Added
