@@ -134,17 +134,20 @@ Or with `uvx`:
 - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
 - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
 
-### Cloud Deployment (SSE for browser access)
+### Cloud Deployment (Streamable HTTP for browser access)
 
 For use via **claude.ai in the browser** (e.g. on managed workstations without local software):
 
 **Render.com (recommended):**
 1. Push/fork the repository to GitHub
-2. On [render.com](https://render.com): New Web Service → connect GitHub repo
-3. Set start command: `python -m zh_education_mcp.server --http --port 8000`
-4. In claude.ai under Settings → MCP Servers, add: `https://your-app.onrender.com/sse`
+2. On [render.com](https://render.com): New Web Service → runtime **Docker** (uses the provided `Dockerfile`)
+3. Set env vars: `MCP_TRANSPORT=streamable-http`, `MCP_HOST=0.0.0.0`, `MCP_PORT=8000`, and `MCP_CORS_ORIGINS=https://claude.ai`
+4. In claude.ai under Settings → MCP Servers, add: `https://your-app.onrender.com/mcp`
 
-> 💡 *"stdio for the developer laptop, SSE for the browser."*
+> 💡 *"stdio for the developer laptop, Streamable HTTP for the browser."*
+
+Health probe: `GET /health`. Full deployment guide (container, load balancing, CORS,
+resource limits): [`docs/deployment.md`](docs/deployment.md).
 
 ---
 
@@ -249,6 +252,18 @@ pytest tests/ -m "live"
 
 ---
 
+## MCP Protocol Version
+
+This server targets the MCP specification as implemented by the pinned `mcp[cli]`
+SDK (see `pyproject.toml`). Protocol/spec-version bumps are recorded in
+[CHANGELOG.md](CHANGELOG.md). Dependencies (incl. the MCP SDK) receive monthly
+update PRs via Dependabot (`.github/dependabot.yml`).
+
+**Project phase:** Phase 1 — *read-only* (all tools `readOnlyHint: true`). See
+[docs/roadmap.md](docs/roadmap.md).
+
+---
+
 ## Changelog
 
 See [CHANGELOG.md](CHANGELOG.md)
@@ -257,7 +272,7 @@ See [CHANGELOG.md](CHANGELOG.md)
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md)
+See [CONTRIBUTING.md](CONTRIBUTING.md) · [🇩🇪 Beitragen](CONTRIBUTING.de.md)
 
 ---
 

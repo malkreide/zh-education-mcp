@@ -130,17 +130,20 @@ Oder mit `uvx`:
 }
 ```
 
-### Cloud-Deployment (SSE für Browser-Zugang)
+### Cloud-Deployment (Streamable HTTP für Browser-Zugang)
 
 Für die Nutzung via **claude.ai im Browser** (z. B. auf verwalteten Arbeitsplätzen ohne lokale Software):
 
 **Render.com (empfohlen):**
 1. Repository auf GitHub pushen/forken
-2. Auf [render.com](https://render.com): New Web Service → GitHub-Repo verbinden
-3. Start-Kommando: `python -m zh_education_mcp.server --http --port 8000`
-4. In claude.ai unter Einstellungen → MCP Servers hinzufügen: `https://your-app.onrender.com/sse`
+2. Auf [render.com](https://render.com): New Web Service → Runtime **Docker** (nutzt das mitgelieferte `Dockerfile`)
+3. Env-Vars setzen: `MCP_TRANSPORT=streamable-http`, `MCP_HOST=0.0.0.0`, `MCP_PORT=8000`, `MCP_CORS_ORIGINS=https://claude.ai`
+4. In claude.ai unter Einstellungen → MCP Servers hinzufügen: `https://your-app.onrender.com/mcp`
 
-> 💡 *«stdio für den Entwickler-Laptop, SSE für den Browser.»*
+> 💡 *«stdio für den Entwickler-Laptop, Streamable HTTP für den Browser.»*
+
+Health-Probe: `GET /health`. Vollständiger Deployment-Guide (Container, Load Balancing,
+CORS, Resource-Limits): [`docs/deployment.md`](docs/deployment.md).
 
 ---
 
@@ -239,6 +242,18 @@ pytest tests/ -m "live"
 
 ---
 
+## MCP-Protokoll-Version
+
+Dieser Server zielt auf die MCP-Spezifikation in der Fassung des gepinnten
+`mcp[cli]`-SDK (siehe `pyproject.toml`). Protokoll-/Spec-Versionssprünge werden
+im [CHANGELOG.md](CHANGELOG.md) dokumentiert. Abhängigkeiten (inkl. MCP-SDK)
+erhalten monatliche Update-PRs via Dependabot (`.github/dependabot.yml`).
+
+**Projektphase:** Phase 1 — *read-only* (alle Tools `readOnlyHint: true`). Siehe
+[docs/roadmap.md](docs/roadmap.md).
+
+---
+
 ## Changelog
 
 Siehe [CHANGELOG.md](CHANGELOG.md)
@@ -247,7 +262,7 @@ Siehe [CHANGELOG.md](CHANGELOG.md)
 
 ## Mitmachen
 
-Siehe [CONTRIBUTING.md](CONTRIBUTING.md)
+Siehe [CONTRIBUTING.de.md](CONTRIBUTING.de.md) · [🇬🇧 Contributing](CONTRIBUTING.md)
 
 ---
 
