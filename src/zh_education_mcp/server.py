@@ -19,14 +19,78 @@ import io
 import json
 import sys
 import time
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from enum import StrEnum
 
 import httpx
 from mcp.server.fastmcp import FastMCP
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+# ─────────────────────────── Konfiguration (ENV-basiert) ───────────────────────
+class Settings(BaseSettings):
+    """Laufzeit-Konfiguration aus Umgebungsvariablen (Präfix ``MCP_``).
+
+    Beispiele:
+      ``MCP_TRANSPORT=streamable-http`` · ``MCP_HOST=0.0.0.0`` · ``MCP_PORT=8000``
+
+    Default ist der lokale stdio-Betrieb mit Loopback-Binding — Cloud-Betrieb
+    wird ausschliesslich explizit über ENV-Vars (oder CLI-Flags) aktiviert.
+    """
+
+    model_config = SettingsConfigDict(env_prefix="MCP_", env_file=".env", extra="ignore")
+
+    transport: str = "stdio"
+    host: str = "127.0.0.1"
+    port: int = 8000
+
+
+settings = Settings()
+
+
+# ─────────────────────────── Lifespan / Connection-Pool ────────────────────────
+@dataclass
+class AppContext:
+    """Geteilte Ressourcen über die Server-Laufzeit (via lifespan injiziert)."""
+
+    client: httpx.AsyncClient
+
+
+# Lifespan-verwalteter, wiederverwendeter HTTP-Client (Connection-Pooling).
+# Kein httpx.AsyncClient pro Tool-Call mehr (siehe Audit SDK-001).
+_client: httpx.AsyncClient | None = None
+
+
+def _get_client() -> httpx.AsyncClient:
+    """Gibt den gepoolten HTTP-Client zurück.
+
+    Im Server-Betrieb wird der Client einmalig im :func:`lifespan` erzeugt.
+    Für direkte/Unit-Test-Aufrufe ausserhalb der Lifespan wird er lazy
+    erzeugt — in beiden Fällen genau **ein** Client statt einer pro Request.
+    """
+    global _client
+    if _client is None or _client.is_closed:
+        _client = httpx.AsyncClient(follow_redirects=True, timeout=HTTP_TIMEOUT)
+    return _client
+
+
+@asynccontextmanager
+async def lifespan(_server: FastMCP) -> AsyncIterator[AppContext]:
+    """Erzeugt den geteilten HTTP-Client beim Start, schliesst ihn beim Stop."""
+    global _client
+    _client = httpx.AsyncClient(follow_redirects=True, timeout=HTTP_TIMEOUT)
+    try:
+        yield AppContext(client=_client)
+    finally:
+        await _client.aclose()
+        _client = None
+
 
 # ─────────────────────────── Server ────────────────────────────────────────────
-mcp = FastMCP("zh_education_mcp")
+mcp = FastMCP("zh_education_mcp", lifespan=lifespan)
 
 # ─────────────────────────── Konstanten ────────────────────────────────────────
 BISTA_API    = "https://www.bista.zh.ch/basicapi/ogd"
@@ -68,9 +132,9 @@ def _cache_set(key: str, data: list[dict]) -> None:
 
 # ─────────────────────────── Shared Utilities ──────────────────────────────────
 async def _http_get(url: str, params: dict | None = None) -> httpx.Response:
-    """Wiederverwendbare HTTP-GET-Funktion mit einheitlichem Timeout."""
-    async with httpx.AsyncClient(follow_redirects=True) as client:
-        return await client.get(url, params=params, timeout=HTTP_TIMEOUT)
+    """HTTP-GET über den gepoolten, lifespan-verwalteten Client."""
+    client = _get_client()
+    return await client.get(url, params=params, timeout=HTTP_TIMEOUT)
 
 
 def _handle_error(e: Exception) -> str:
@@ -850,17 +914,37 @@ async def zh_edu_mittelschulen(params: MittelschulenInput) -> str:
 
 
 # ─────────────────────────── Einstiegspunkt ────────────────────────────────────
-if __name__ == "__main__":
-    transport = "stdio"
-    port = 8000
+def main() -> None:
+    """Startet den Server.
 
-    for i, arg in enumerate(sys.argv[1:], 1):
+    Konfiguration primär über ENV-Vars (``MCP_TRANSPORT``/``MCP_HOST``/``MCP_PORT``).
+    CLI-Flags ``--http``/``--sse``/``--port``/``--host`` überschreiben die ENV-Werte
+    (Abwärtskompatibilität mit der README-Doku). Default bleibt lokal: stdio + Loopback.
+    """
+    transport = settings.transport
+    host = settings.host
+    port = settings.port
+
+    argv = sys.argv[1:]
+    for i, arg in enumerate(argv):
         if arg == "--http":
             transport = "streamable-http"
-        elif arg == "--port" and i < len(sys.argv) - 1:
-            port = int(sys.argv[i + 1])
+        elif arg == "--sse":
+            transport = "sse"
+        elif arg == "--port" and i + 1 < len(argv):
+            port = int(argv[i + 1])
+        elif arg == "--host" and i + 1 < len(argv):
+            host = argv[i + 1]
 
-    if transport == "streamable-http":
-        mcp.run(transport=transport, port=port)
-    else:
+    # Netzwerk-Binding nur für HTTP-Transporte relevant.
+    mcp.settings.host = host
+    mcp.settings.port = port
+
+    if transport in ("streamable-http", "sse"):
         mcp.run(transport=transport)
+    else:
+        mcp.run(transport="stdio")
+
+
+if __name__ == "__main__":
+    main()
