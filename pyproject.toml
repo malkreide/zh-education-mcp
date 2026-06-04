@@ -5,10 +5,10 @@ build-backend = "hatchling.build"
 [project]
 name        = "zh-education-mcp"
 version     = "0.2.0"
-description = "MCP-Server für Bildungsstatistiken des Kantons und der Stadt Zürich (BISTA)"
+description = "MCP server for education statistics of the Canton and City of Zurich (BISTA)"
 readme      = "README.md"
 license     = { file = "LICENSE" }
-authors     = [{ name = "malkreide" }]
+authors     = [{ name = "Hayal Oezkan" }]
 requires-python = ">=3.11"
 
 keywords = [

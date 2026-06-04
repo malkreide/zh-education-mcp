@@ -223,6 +223,7 @@ zh-education-mcp/
 ├── pyproject.toml
 ├── CHANGELOG.md
 ├── CONTRIBUTING.md              # + CONTRIBUTING.de.md
+├── SECURITY.md                  # + SECURITY.de.md
 ├── LICENSE
 ├── README.md                    # This file (English)
 └── README.de.md                 # German version
@@ -285,6 +286,12 @@ See [CHANGELOG.md](CHANGELOG.md)
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) · [🇩🇪 Beitragen](CONTRIBUTING.de.md)
+
+---
+
+## Security
+
+See [SECURITY.md](SECURITY.md) · [🇩🇪 Sicherheit](SECURITY.de.md)
 
 ---
 
