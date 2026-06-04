@@ -1,5 +1,7 @@
 # Contributing to zh-education-mcp
 
+🇩🇪 [Deutsche Version](CONTRIBUTING.de.md)
+
 Thank you for your interest in contributing!
 
 ## Development Setup
