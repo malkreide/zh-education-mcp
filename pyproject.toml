@@ -57,6 +57,7 @@ otel = [
 zh-education-mcp = "zh_education_mcp.server:main"
 
 [project.urls]
+"mcp-name" = "io.github.malkreide/zh-education-mcp"
 Homepage   = "https://github.com/malkreide/zh-education-mcp"
 Repository = "https://github.com/malkreide/zh-education-mcp"
 Issues     = "https://github.com/malkreide/zh-education-mcp/issues"
