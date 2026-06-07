@@ -315,3 +315,5 @@ Hayal Oezkan · [malkreide](https://github.com/malkreide)
 - **Related:** [swiss-cultural-heritage-mcp](https://github.com/malkreide/swiss-cultural-heritage-mcp) — Swiss cultural heritage data
 - **Related:** [fedlex-mcp](https://github.com/malkreide/fedlex-mcp) — Swiss federal law
 - **Portfolio:** [Swiss Public Data MCP Portfolio](https://github.com/malkreide)
+
+<!-- mcp-name: io.github.malkreide/zh-education-mcp -->
