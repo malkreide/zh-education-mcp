@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import json
 
-from mcp.server.fastmcp import Context, FastMCP
-from mcp.server.fastmcp.exceptions import ToolError
+from mcp.server.mcpserver import Context, MCPServer
+from mcp.server.mcpserver.exceptions import ToolError
 from starlette.responses import JSONResponse
 
 from .config import settings
@@ -35,11 +35,9 @@ from .telemetry import traced
 # ─────────────────────────── Server ────────────────────────────────────────────
 # stateless_http=True ⇒ kein serverseitiger Session-State ⇒ horizontal
 # skalierbar ohne Sticky Sessions (SCALE-002/003), passend zu read-only Daten.
-mcp = FastMCP(
+mcp = MCPServer(
     "zh_education_mcp",
     lifespan=lifespan,
-    stateless_http=settings.stateless_http,
-    json_response=settings.json_response,
 )
 
 

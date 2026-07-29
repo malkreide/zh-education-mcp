@@ -74,11 +74,10 @@ def test_configured_cors_origins_pass_transport_check(monkeypatch):
 
 
 def _post_with_host(host_header: str):
-    mcp.settings.transport_security = build_transport_security("127.0.0.1", 8000)
-    # Das SDK cacht den Session-Manager auf der FastMCP-Instanz und lässt ihn
-    # nur einmal laufen; ohne Reset schlägt der zweite Aufruf im Lifespan fehl.
-    mcp._session_manager = None
-    with TestClient(mcp.streamable_http_app()) as client:
+    # mcp 2.x: transport_security is a per-app kwarg, not a setting.
+    with TestClient(
+        mcp.streamable_http_app(transport_security=build_transport_security("127.0.0.1", 8000))
+    ) as client:
         return client.post("/mcp", headers={"Host": host_header, **_HEADERS}, json=_INIT)
 
 
