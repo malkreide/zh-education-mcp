@@ -163,6 +163,41 @@ def main() -> None:
         mcp.run(transport="stdio")
 
 
+def build_transport_security(host: str, port: int):
+    """Host/Origin-Allow-List für die HTTP-Transporte (SEC-005, eingehend).
+
+    Ohne ``transport_security`` lässt das SDK den DNS-Rebinding-Schutz **aus** —
+    es sagt das selbst: "If not specified, disable DNS rebinding protection by
+    default for backwards compatibility". Ein ungesetzter Wert heisst also:
+    keinerlei Host- oder Origin-Prüfung.
+
+    Rückgabe ``None``, wenn die Allow-List nicht bestimmbar ist. Das ist genau
+    der Fall "Nicht-Loopback-Bind ohne ``MCP_ALLOWED_HOSTS``": der Server wird
+    dann unter einem Service- oder DNS-Namen erreicht, den dieser Prozess nicht
+    kennt, und eine geratene Liste würde jede echte Anfrage mit HTTP 421
+    abweisen. Der Aufrufer warnt in dem Fall.
+    """
+    from mcp.server.transport_security import TransportSecuritySettings
+
+    loopback = {f"127.0.0.1:{port}", f"localhost:{port}", f"[::1]:{port}"}
+    if settings.allowed_host_list:
+        # Loopback bleibt für Health-Checks und lokales Debugging erreichbar.
+        hosts = set(settings.allowed_host_list) | loopback
+    elif host in ("127.0.0.1", "localhost", "::1"):
+        hosts = loopback | {f"{host}:{port}"}
+    else:
+        return None
+
+    # Die konfigurierten CORS-Origins müssen auch die Transport-Prüfung
+    # passieren, sonst weist der Server Browser-Clients ab, die CORS erlaubt.
+    origins = set(settings.cors_origin_list) | {f"http://{h}" for h in hosts}
+    return TransportSecuritySettings(
+        enable_dns_rebinding_protection=True,
+        allowed_hosts=sorted(hosts),
+        allowed_origins=sorted(origins),
+    )
+
+
 def _run_http(transport: str, host: str, port: int) -> None:
     """Startet einen HTTP-Transport mit CORS-Middleware (SDK-004).
 
@@ -170,8 +205,21 @@ def _run_http(transport: str, host: str, port: int) -> None:
     explizit exponiert und akzeptiert (sonst brechen Browser-Clients wie claude.ai).
     Origins kommen aus ``MCP_CORS_ORIGINS`` — keine Wildcard in Produktion.
     """
+    import logging
+
     import uvicorn
     from starlette.middleware.cors import CORSMiddleware
+
+    security = build_transport_security(host, port)
+    if security is None:
+        logging.getLogger("zh_education_mcp").warning(
+            "DNS-Rebinding-Schutz ist AUS: Bind auf %s ist nicht Loopback und "
+            "MCP_ALLOWED_HOSTS ist leer. Setze MCP_ALLOWED_HOSTS auf die "
+            "Hostnamen, unter denen dieser Server erreichbar ist "
+            "(z. B. mcp.example.ch), damit Host und Origin geprüft werden.",
+            host,
+        )
+    mcp.settings.transport_security = security
 
     app = mcp.sse_app() if transport == "sse" else mcp.streamable_http_app()
     app.add_middleware(
