@@ -473,7 +473,7 @@ def test_lizenz_resource_has_attribution():
 @pytest.mark.asyncio
 async def test_execution_error_raises_toolerror():
     """Ein Backend-Fehler wird als ToolError (isError:true) signalisiert, sanitisiert."""
-    from mcp.server.fastmcp.exceptions import ToolError
+    from mcp.server.mcpserver.exceptions import ToolError
 
     from zh_education_mcp.server import UebersichtInput, zh_edu_overview
 

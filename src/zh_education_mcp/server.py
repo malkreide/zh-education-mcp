@@ -21,7 +21,7 @@ auf fokussierte Submodule aufgeteilt (ARCH-011):
   · http_client     — Egress-Guard, Connection-Pool, Lifespan
   · data            — Cache, CSV-Fetch, Filter, Fehler-Sanitisierung
   · models          — Pydantic-Input-Modelle
-  · tools           — FastMCP-Instanz + die 8 Tools
+  · tools           — MCPServer-Instanz + die 8 Tools
 """
 
 from __future__ import annotations
@@ -219,9 +219,12 @@ def _run_http(transport: str, host: str, port: int) -> None:
             "(z. B. mcp.example.ch), damit Host und Origin geprüft werden.",
             host,
         )
-    mcp.settings.transport_security = security
-
-    app = mcp.sse_app() if transport == "sse" else mcp.streamable_http_app()
+    # mcp 2.x: transport_security is a per-app kwarg, not a mutable setting.
+    app = (
+        mcp.sse_app(transport_security=security, host=host)
+        if transport == "sse"
+        else mcp.streamable_http_app(transport_security=security, host=host)
+    )
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,

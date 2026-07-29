@@ -57,7 +57,7 @@ def _handle_error(e: Exception) -> str:
 async def _fetch_csv(endpoint: str, ctx: object | None = None) -> list[dict]:
     """Holt CSV-Daten von einem BISTA-Endpunkt und gibt eine Liste von Dicts zurück.
 
-    Optionaler ``ctx`` (FastMCP Context) erlaubt Progress-Reports und
+    Optionaler ``ctx`` (MCPServer Context) erlaubt Progress-Reports und
     client-seitiges Logging bei nicht-gecachten Fetches (SDK-003).
     """
     cached = _cache_get(endpoint)
