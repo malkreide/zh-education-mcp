@@ -8,7 +8,6 @@ from mcp.server.mcpserver import Context, MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from starlette.responses import JSONResponse
 
-from .config import settings
 from .constants import (
     EP_MATURITAET,
     EP_MITTELSCHULEN,
