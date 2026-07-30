@@ -9,6 +9,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`stateless_http` und `json_response` kamen nicht mehr bei der App an
+  (SCALE-002/003).** In mcp 1.x waren beide `MCPServer`-Konstruktor-Argumente;
+  die Migration auf 2.x hat sie gelöscht, ohne sie als App-Kwargs wieder
+  anzuhängen. Das war ein stiller Rückschritt: der Default in `config.py` ist
+  `stateless_http: bool = True`, der App-Kwarg-Default ist `False` — der Server
+  hielt also wieder Session-State und verlangte Sticky Sessions, während der
+  Kommentar in `tools.py` weiterhin Round-Robin ohne Sticky Sessions zusicherte.
+  Nichts schlug fehl, weil der Lesepfad, an dem man es gesehen hätte, mit
+  verschwunden ist.
+
+  Beide reisen jetzt in `streamable_http_app()`. `sse_app()` bekommt sie nicht:
+  SSE hat kein Stateless-Modell und kein JSON-Response-Format.
+
+  Vier neue Tests prüfen die App-Kwargs selbst statt eines Zwischenzustands —
+  inklusive eines Falls mit `stateless_http=False`, der beweist, dass der Wert
+  durchreist und nicht hartkodiert ist, und eines, der festhält, dass der
+  1.x-Lesepfad laut fehlschlägt (`ValueError`) statt still zu verpuffen.
+  Mutationsgetestet: entfernt man die Kwargs wieder, fallen genau diese drei.
+
+  Geprüft mit dem wörtlichen CI-Kommando: 55 passed, 1 skipped, 1 deselected;
+  `ruff check src/ tests/` clean.
+
+
+### Fixed
+
 - **Capped `mcp` at `<2`.** `mcp` 2.0.0, published 2026-07-28, removed
   `mcp.server.fastmcp` — the module this server imports. With the previous
   unbounded `>=1.28.1` every fresh resolve picked 2.0.0 and failed at import
