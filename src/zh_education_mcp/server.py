@@ -219,11 +219,23 @@ def _run_http(transport: str, host: str, port: int) -> None:
             "(z. B. mcp.example.ch), damit Host und Origin geprüft werden.",
             host,
         )
-    # mcp 2.x: transport_security is a per-app kwarg, not a mutable setting.
+    # mcp 2.x: transport_security, stateless_http und json_response sind
+    # per-App-Kwargs, keine Settings mehr. `stateless_http` muss hier stehen:
+    # es war in 1.x ein MCPServer-Konstruktor-Argument, der Default in
+    # `config.py` ist `True`, und der App-Kwarg-Default ist `False` — ohne diese
+    # Zeile kippt SCALE-002/003 still ins Gegenteil und der Server braucht
+    # wieder Sticky Sessions.
+    # `sse_app()` nimmt beide nicht: SSE hat kein Stateless-Modell und kein
+    # JSON-Response-Format, deshalb nur im Streamable-HTTP-Zweig.
     app = (
         mcp.sse_app(transport_security=security, host=host)
         if transport == "sse"
-        else mcp.streamable_http_app(transport_security=security, host=host)
+        else mcp.streamable_http_app(
+            transport_security=security,
+            host=host,
+            stateless_http=settings.stateless_http,
+            json_response=settings.json_response,
+        )
     )
     app.add_middleware(
         CORSMiddleware,
