@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-07-31
+
+### Hinzugefuegt
+
+- **Der Server nennt jetzt seinen Namen.** Bisher ging gegenueber jedem
+  Upstream der httpx-Default hinaus: der Betreiber der Datenquelle sah
+  eine Bibliothek, nicht uns, und hatte keinen Weg, uns bei Fehlverhalten
+  zu erreichen. Neu traegt den HTTP-Client
+  `zh-education-mcp/<version> (+github.com/malkreide/zh-education-mcp)`.
+
+  Die Version stammt aus `importlib.metadata` und kann nicht getrennt vom
+  Paket driften.
+
 ### Fixed
 
 - **`stateless_http` und `json_response` kamen nicht mehr bei der App an

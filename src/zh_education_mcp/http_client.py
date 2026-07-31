@@ -10,9 +10,14 @@ from dataclasses import dataclass
 
 import httpx
 
+from . import __version__
 from .constants import HTTP_TIMEOUT
 from .logging_setup import log
 
+# Wer fragt hier an? Ohne eigenen User-Agent geht der httpx-Default
+# hinaus und der Betreiber der Datenquelle sieht bloss eine Bibliothek.
+# Die Version stammt aus den Paket-Metadaten und kann nicht driften.
+USER_AGENT = f"zh-education-mcp/{__version__} (+https://github.com/malkreide/zh-education-mcp)"
 # Egress-Allow-List (SEC-004/SEC-021): nur diese Hosts dürfen kontaktiert werden,
 # als unveränderliches frozenset im Code (nicht zur Laufzeit mutierbar).
 ALLOWED_HOSTS: frozenset[str] = frozenset({"www.bista.zh.ch"})
@@ -78,6 +83,7 @@ def _new_client() -> httpx.AsyncClient:
         follow_redirects=True,
         timeout=HTTP_TIMEOUT,
         event_hooks={"request": [_egress_guard]},
+        headers={"User-Agent": USER_AGENT},
     )
 
 
