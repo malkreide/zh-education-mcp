@@ -50,6 +50,7 @@ async def health(_request):  # noqa: ANN001 — Starlette Request
 #  RESOURCES — zweites MCP-Primitiv neben Tools (ARCH-008)
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 @mcp.resource(
     "zh-edu://datenquellen",
     name="BISTA-Datenquellen",
@@ -62,7 +63,14 @@ def datenquellen_resource() -> str:
         {
             "source": PROVENANCE,
             "datasets": [
-                {"endpoint": EP_SEK1, "tools": ["zh_edu_list_schulgemeinden", "zh_edu_schulkreis_trend", "zh_edu_sek1_profil"]},
+                {
+                    "endpoint": EP_SEK1,
+                    "tools": [
+                        "zh_edu_list_schulgemeinden",
+                        "zh_edu_schulkreis_trend",
+                        "zh_edu_sek1_profil",
+                    ],
+                },
                 {"endpoint": EP_UEBERSICHT, "tools": ["zh_edu_overview"]},
                 {"endpoint": EP_NAT_REGIONAL, "tools": ["zh_edu_staatsangehoerigkeiten"]},
                 {"endpoint": EP_MATURITAET, "tools": ["zh_edu_maturitaetsquote"]},
@@ -89,6 +97,7 @@ def lizenz_resource() -> str:
 # ══════════════════════════════════════════════════════════════════════════════
 #  TOOL 1 — Schulgemeinden auflisten
 # ══════════════════════════════════════════════════════════════════════════════
+
 
 @mcp.tool(
     name="zh_edu_list_schulgemeinden",
@@ -153,6 +162,7 @@ async def zh_edu_list_schulgemeinden(
 #  TOOL 2 — Schulkreis-Trend
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 @mcp.tool(
     name="zh_edu_schulkreis_trend",
     annotations={
@@ -164,9 +174,7 @@ async def zh_edu_list_schulgemeinden(
     },
 )
 @traced("zh_edu_schulkreis_trend")
-async def zh_edu_schulkreis_trend(
-    params: SchulkreisTrendInput, ctx: Context | None = None
-) -> str:
+async def zh_edu_schulkreis_trend(params: SchulkreisTrendInput, ctx: Context | None = None) -> str:
     """Zeigt den Lernenden-Trend für eine Schulgemeinde / einen Schulkreis.
 
     Liefert die Entwicklung der Lernendenzahlen (Sek I) über die letzten N Jahre,
@@ -187,9 +195,9 @@ async def zh_edu_schulkreis_trend(
 
         if not matched:
             gemeinden = sorted({r["Schulgemeinde"] for r in rows if r.get("Schulgemeinde")})
-            suggestions = [
-                g for g in gemeinden if params.schulgemeinde.lower()[:4] in g.lower()
-            ][:5]
+            suggestions = [g for g in gemeinden if params.schulgemeinde.lower()[:4] in g.lower()][
+                :5
+            ]
             hint = f" Meinten Sie: {', '.join(suggestions)}?" if suggestions else ""
             return _not_found(
                 params.response_format,
@@ -252,6 +260,7 @@ async def zh_edu_schulkreis_trend(
 #  TOOL 3 — Kantonsweite Übersicht
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 @mcp.tool(
     name="zh_edu_overview",
     annotations={
@@ -263,9 +272,7 @@ async def zh_edu_schulkreis_trend(
     },
 )
 @traced("zh_edu_overview")
-async def zh_edu_overview(
-    params: UebersichtInput, ctx: Context | None = None
-) -> str:
+async def zh_edu_overview(params: UebersichtInput, ctx: Context | None = None) -> str:
     """Gibt eine kantonsweite Übersicht aller Lernenden nach Stufe, Typ und Geschlecht.
 
     Datenquelle: BISTA-Übersicht aller Lernenden im Kanton Zürich.
@@ -292,7 +299,9 @@ async def zh_edu_overview(
             filtered = _filter_rows(filtered, Stufe=params.stufe)
 
         if not filtered:
-            return _not_found(params.response_format, f"Keine Daten für Jahr {jahr} gefunden.", jahr=jahr)
+            return _not_found(
+                params.response_format, f"Keine Daten für Jahr {jahr} gefunden.", jahr=jahr
+            )
 
         if params.response_format == ResponseFormat.JSON:
             return _envelope(filtered, jahr=jahr)
@@ -325,6 +334,7 @@ async def zh_edu_overview(
 #  TOOL 4 — Sek-I-Profil
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 @mcp.tool(
     name="zh_edu_sek1_profil",
     annotations={
@@ -336,9 +346,7 @@ async def zh_edu_overview(
     },
 )
 @traced("zh_edu_sek1_profil")
-async def zh_edu_sek1_profil(
-    params: Sek1ProfilInput, ctx: Context | None = None
-) -> str:
+async def zh_edu_sek1_profil(params: Sek1ProfilInput, ctx: Context | None = None) -> str:
     """Zeigt das Sek-I-Profil einer Schulgemeinde (Anforderungstypen A/B/C).
 
     Schlüsselt die Lernenden der Sekundarstufe I nach Anforderungstyp auf:
@@ -405,6 +413,7 @@ async def zh_edu_sek1_profil(
 #  TOOL 5 — Staatsangehörigkeiten
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 @mcp.tool(
     name="zh_edu_staatsangehoerigkeiten",
     annotations={
@@ -455,15 +464,12 @@ async def zh_edu_staatsangehoerigkeiten(
         top = year_data[: params.top_n]
 
         if params.response_format == ResponseFormat.JSON:
-            return _envelope(
-                top, schulgemeinde=params.schulgemeinde, jahr=jahr, top_n=params.top_n
-            )
+            return _envelope(top, schulgemeinde=params.schulgemeinde, jahr=jahr, top_n=params.top_n)
 
         total = sum(int(r.get("Anzahl", 0)) for r in year_data)
         lines = [f"# Staatsangehörigkeiten {params.schulgemeinde} — {jahr}\n"]
         lines.append(
-            f"Top {params.top_n} von {len(year_data)} Nationalitäten "
-            f"(Total: {total:,} Lernende)\n"
+            f"Top {params.top_n} von {len(year_data)} Nationalitäten (Total: {total:,} Lernende)\n"
         )
         lines.append("| # | Staatsangehörigkeit | ISO2 | Lernende | Anteil |")
         lines.append("|---|---------------------|------|--------:|-------:|")
@@ -487,6 +493,7 @@ async def zh_edu_staatsangehoerigkeiten(
 #  TOOL 6 — Maturitätsquote
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 @mcp.tool(
     name="zh_edu_maturitaetsquote",
     annotations={
@@ -498,9 +505,7 @@ async def zh_edu_staatsangehoerigkeiten(
     },
 )
 @traced("zh_edu_maturitaetsquote")
-async def zh_edu_maturitaetsquote(
-    params: MaturitaetsquoteInput, ctx: Context | None = None
-) -> str:
+async def zh_edu_maturitaetsquote(params: MaturitaetsquoteInput, ctx: Context | None = None) -> str:
     """Zeigt die gymnasiale Maturitätsquote nach Gemeinde, Bezirk und Kanton.
 
     Die Maturitätsquote berechnet sich als Anteil der gymnasialen Abschlüsse
@@ -568,6 +573,7 @@ async def zh_edu_maturitaetsquote(
 #  TOOL 7 — Wohnort-Trend
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 @mcp.tool(
     name="zh_edu_wohnort_trend",
     annotations={
@@ -579,9 +585,7 @@ async def zh_edu_maturitaetsquote(
     },
 )
 @traced("zh_edu_wohnort_trend")
-async def zh_edu_wohnort_trend(
-    params: WohnortTrendInput, ctx: Context | None = None
-) -> str:
+async def zh_edu_wohnort_trend(params: WohnortTrendInput, ctx: Context | None = None) -> str:
     """Zeigt die Entwicklung der Lernendenzahlen nach Wohnort (Bezirk/Gemeinde).
 
     Basiert auf dem Wohnort der Lernenden, nicht dem Schulort.
@@ -660,6 +664,7 @@ async def zh_edu_wohnort_trend(
 #  TOOL 8 — Mittelschulen
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 @mcp.tool(
     name="zh_edu_mittelschulen",
     annotations={
@@ -671,9 +676,7 @@ async def zh_edu_wohnort_trend(
     },
 )
 @traced("zh_edu_mittelschulen")
-async def zh_edu_mittelschulen(
-    params: MittelschulenInput, ctx: Context | None = None
-) -> str:
+async def zh_edu_mittelschulen(params: MittelschulenInput, ctx: Context | None = None) -> str:
     """Zeigt Statistiken zu Mittelschulen (Gymnasium, FMS, HMS) im Kanton Zürich.
 
     Umfasst Lernendenzahlen nach Mittelschultyp, Bildungsart, Geschlecht

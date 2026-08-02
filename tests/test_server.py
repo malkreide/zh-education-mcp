@@ -41,6 +41,7 @@ BISTA_BASE = "https://www.bista.zh.ch/basicapi/ogd"
 def _clear_cache():
     """Cache vor jedem Test leeren."""
     from zh_education_mcp.server import _cache
+
     _cache.clear()
     yield
     _cache.clear()
@@ -134,9 +135,9 @@ async def test_staatsangehoerigkeiten_top3():
     from zh_education_mcp.server import StaatsangehoerigkeitInput, zh_edu_staatsangehoerigkeiten
 
     with respx.mock:
-        respx.get(
-            f"{BISTA_BASE}/data_lernende_regelschule_regional_staatsangehoerigkeit"
-        ).mock(return_value=httpx.Response(200, text=SAMPLE_NAT_CSV))
+        respx.get(f"{BISTA_BASE}/data_lernende_regelschule_regional_staatsangehoerigkeit").mock(
+            return_value=httpx.Response(200, text=SAMPLE_NAT_CSV)
+        )
 
         params = StaatsangehoerigkeitInput(schulgemeinde="Zürich-Letzi", top_n=3)
         result = await zh_edu_staatsangehoerigkeiten(params)
@@ -277,9 +278,7 @@ def test_not_found_json_has_match_type_none():
 
     from zh_education_mcp.server import ResponseFormat, _not_found
 
-    out = _not_found(
-        ResponseFormat.JSON, "nicht gefunden", suggestions=["Zürich-Letzi"]
-    )
+    out = _not_found(ResponseFormat.JSON, "nicht gefunden", suggestions=["Zürich-Letzi"])
     payload = json.loads(out)
     assert payload["match_type"] == "none"
     assert payload["suggestions"] == ["Zürich-Letzi"]
@@ -366,9 +365,7 @@ async def test_maturitaetsquote_json_envelope():
         respx.get(f"{BISTA_BASE}/data_maturitaetsquote_gemeinden_und_kanton").mock(
             return_value=httpx.Response(200, text=SAMPLE_MATURITAET_CSV)
         )
-        result = await zh_edu_maturitaetsquote(
-            MaturitaetsquoteInput(response_format="json")
-        )
+        result = await zh_edu_maturitaetsquote(MaturitaetsquoteInput(response_format="json"))
 
     payload = json.loads(result)
     assert payload["count"] == 2
@@ -570,14 +567,14 @@ async def test_otel_span_created_when_enabled():
 @pytest.mark.parametrize(
     "ip,blocked",
     [
-        ("169.254.169.254", True),   # Cloud-Metadata
-        ("127.0.0.1", True),         # Loopback
-        ("10.0.0.5", True),          # privat
-        ("192.168.1.1", True),       # privat
-        ("::1", True),               # IPv6-Loopback
-        ("fe80::1", True),           # IPv6-Link-local
-        ("8.8.8.8", False),          # öffentlich
-        ("not-an-ip", True),         # ungültig → blockiert
+        ("169.254.169.254", True),  # Cloud-Metadata
+        ("127.0.0.1", True),  # Loopback
+        ("10.0.0.5", True),  # privat
+        ("192.168.1.1", True),  # privat
+        ("::1", True),  # IPv6-Loopback
+        ("fe80::1", True),  # IPv6-Link-local
+        ("8.8.8.8", False),  # öffentlich
+        ("not-an-ip", True),  # ungültig → blockiert
     ],
 )
 def test_ip_blocklist_classification(ip, blocked):
