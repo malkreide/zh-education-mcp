@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.6] - 2026-08-02
+
+### Behoben
+
+- **`structlog` hatte keine Obergrenze, und der Index fuehrt bereits einen Major
+  oberhalb der Untergrenze.** Deklariert war `structlog>=24.1.0`; auf PyPI liegt
+  `26.1.0`. Das Artefakt aendert sich nicht — die Antwort des Resolvers auf
+  die naechste frische Installation schon, und genau so wurde
+  `swiss-energy-mcp` 0.3.3 uninstallierbar, als `mcp` 2.0.0 das Modul entfernt
+  hat, das es importierte.
+
+  Neu `structlog>=24.1.0,<27`. Die Grenze ist gemessen, nicht geraten: dieses Paket installiert
+  und importiert heute gegen `structlog 26.1.0`, die Obergrenze laesst also zu,
+  was nachweislich funktioniert, und stoppt nur den naechsten, unbekannten
+  Major.
+
+- **`starlette` hatte keine Obergrenze, und der Index fuehrt bereits einen Major
+  oberhalb der Untergrenze.** Deklariert war `starlette>=0.37.0`; auf PyPI liegt
+  `1.3.1`. Das Artefakt aendert sich nicht — die Antwort des Resolvers auf
+  die naechste frische Installation schon, und genau so wurde
+  `swiss-energy-mcp` 0.3.3 uninstallierbar, als `mcp` 2.0.0 das Modul entfernt
+  hat, das es importierte.
+
+  Neu `starlette>=0.37.0,<2`. Die Grenze ist gemessen, nicht geraten: dieses Paket installiert
+  und importiert heute gegen `starlette 1.3.1`, die Obergrenze laesst also zu,
+  was nachweislich funktioniert, und stoppt nur den naechsten, unbekannten
+  Major.
+
+Ein Abhaengigkeitsbereich erreicht die Nutzenden nur ueber ein neues
+Release, daher der Versions-Bump. Am Code aendert sich nichts.
+
 ## [0.2.5] - 2026-08-02
 
 ### Behoben
