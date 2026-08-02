@@ -153,9 +153,14 @@ def main() -> None:
         elif arg == "--host" and i + 1 < len(argv):
             host = argv[i + 1]
 
-    # Netzwerk-Binding nur für HTTP-Transporte relevant.
-    mcp.settings.host = host
-    mcp.settings.port = port
+    # Kein `mcp.settings.host/.port` mehr: in mcp 2.x kennt `MCPServer.settings`
+    # nur noch debug/log_level/warn_on_duplicate_*/dependencies/lifespan/auth.
+    # Ein Rest aus der 1.x-API stand hier bis 0.2.4 und warf beim Zuweisen
+    # `ValueError: "Settings" object has no field "host"` — vor der
+    # Transport-Weiche, also war auch stdio tot, nicht nur HTTP.
+    # Das Binding braucht ohnehin niemand über die Settings: `_run_http`
+    # bekommt host und port als Argumente und reicht sie an die App und an
+    # `uvicorn.run` weiter.
 
     if transport in ("streamable-http", "sse"):
         _run_http(transport, host, port)

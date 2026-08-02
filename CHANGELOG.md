@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.5] - 2026-08-02
+
+### Behoben
+
+- **Der Server startete gar nicht mehr.** `zh-education-mcp` ohne Argumente
+  brach sofort ab:
+
+  ```
+  ValueError: "Settings" object has no field "host"
+  ```
+
+  `main()` setzte `mcp.settings.host` und `mcp.settings.port` — ein Rest der
+  1.x-API, den die Migration auf das mcp-SDK 2.x uebersehen hat. Unter 2.x
+  kennt `MCPServer.settings` nur noch `debug`, `log_level`,
+  `warn_on_duplicate_*`, `dependencies`, `lifespan` und `auth`; pydantic wirft
+  beim Zuweisen eines unbekannten Feldes.
+
+  Weil die beiden Zeilen **vor** der Transport-Weiche standen, war auch stdio
+  betroffen, nicht nur die HTTP-Transporte — also der Standardfall, mit dem
+  Claude Desktop den Server startet.
+
+  Die Zeilen sind ersatzlos entfernt: `_run_http` bekommt `host` und `port` als
+  Argumente und reicht sie an die App und an `uvicorn.run` weiter. Ueber die
+  Settings brauchte sie ohnehin niemand.
+
+- **Kein Test hat je `main()` aufgerufen.** Es gab Import-Tests, aber
+  importieren ist nicht starten, und genau dieser Unterschied war der Fehler.
+  `tests/test_entrypoint.py` prueft jetzt, dass `main()` den stdio-Transport
+  erreicht, dass `--host`/`--port` bis zum HTTP-Start durchkommen, und dass das
+  SDK weiterhin kein `host`-Feld in den Settings hat — sollte es zurueckkehren,
+  schlaegt der Test fehl und jemand entscheidet bewusst, statt dass die alte
+  Zeile still wieder einzieht.
+
+  Gegengeprueft: mit den entfernten Zeilen zurueck im Code schlagen zwei der
+  drei Tests fehl.
+
+  Aufgefallen ist der Ausfall beim ersten portfolioweiten Lauf einer Sonde, die
+  das installierte Konsolen-Skript **startet** statt es nur zu importieren.
+
 ## [0.2.4] - 2026-07-31
 
 ### Hinzugefuegt
