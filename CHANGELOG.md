@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Hinzugefuegt
+
+- **Release-Gate vor dem PyPI-Upload** (`scripts/check_release_artifacts.py`,
+  eingehaengt in `publish.yml` zwischen `python -m build` und dem Upload).
+  Geprueft wird das **gebaute Artefakt**, nicht die Quelldatei — und zwar
+  genau das, was sonst erst nach einem erfolgreichen Upload auffiele:
+
+  - der `mcp-name`-Marker in der Wheel-METADATA. Er muss in der Datei stehen,
+    die `pyproject.toml` als `readme` deklariert; einer nur in `README.de.md`
+    wandert nicht ins Wheel, und ohne ihn kann die MCP-Registry die
+    PyPI-Ownership nicht belegen.
+  - `server.json` description ≤ 100 Zeichen. Die Registry antwortet sonst mit
+    `422` — nach dem PyPI-Upload.
+  - Tag == gebaute Version. Ein Re-Run eines alten Tag-Laufs checkt den alten
+    Commit aus und reproduziert denselben Fehler, waehrend der Fix im
+    Default-Branch unsichtbar bleibt.
+
+  Der Zeitpunkt ist der Punkt: Eine PyPI-Version ist unveraenderlich. Was
+  hinterher auffaellt, kostet einen Versionssprung, kein Nachbessern.
+
+### Geaendert
+
+- **`ruff` hat eine Obergrenze bekommen** (`>=0.16,<0.17` statt `>=0.4.0`).
+  Ohne sie installiert ein frischer Klon die jeweils neuste Version und
+  formatiert anders als das gepinnte `ruff==0.16.1` in `ci.yml`. Genau so kam
+  am 3. August ein roter Format-Check an Code zustande, den niemand angefasst
+  hatte: lokal mit Standard-Zeilenbreite 88 umgebrochen, waehrend das Projekt
+  100 setzt. Beim Anheben gehoeren Grenze und CI-Pin gemeinsam bewegt.
+
 ## [0.2.7] - 2026-08-03
 
 ### Behoben

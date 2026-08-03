@@ -23,6 +23,17 @@ jobs:
       - name: Build package
         run: python -m build
 
+      # Das Gate prüft das gebaute Artefakt, nicht die Quelldateien — und es
+      # steht vor dem Upload, weil danach nichts mehr korrigierbar ist: Eine
+      # PyPI-Version ist unveränderlich, ein Fehler kostet einen
+      # Versionssprung. Geprüft wird, was erst nach einem erfolgreichen Upload
+      # auffiele: der `mcp-name`-Marker in der Wheel-METADATA (ohne ihn kann
+      # die Registry die PyPI-Ownership nicht belegen), `server.json`
+      # description ≤ 100 Zeichen (sonst 422 von der Registry) und dass der Tag
+      # auf die Version zeigt, die tatsächlich gebaut wurde.
+      - name: Release-Gate (gebaute Artefakte prüfen)
+        run: python scripts/check_release_artifacts.py --dist dist --tag "${{ github.ref_name }}"
+
       - name: Upload build artifact
         uses: actions/upload-artifact@v7
         with:
