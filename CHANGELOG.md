@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Behoben
+
+- **Die `_no_sleep`-Fixture griff weiter, als sie durfte.** Sie patchte
+  `http_client.asyncio.sleep` — das sieht lokal aus, trifft aber das *Modul*
+  `asyncio` und damit jeden Import im Prozess. Jeder Test, der
+  `asyncio.sleep(0)` benutzt, um dem Event-Loop das Wort zu geben, haette
+  danach still nichts mehr geprueft: Er laeuft weiter und misst nichts.
+
+  In diesem Repo gibt es derzeit keinen solchen Test, der Schaden war also
+  latent. In `srgssr-mcp` ist derselbe Griff in derselben Kampagne
+  zugeschnappt und hat eine Parallelitaets-Pruefung entschaerft.
+
+  Der Backoff laeuft jetzt ueber den Modul-Alias `http_client._sleep`, und ein
+  Test haelt fest, dass `asyncio.sleep` intakt bleibt.
+
 ### Hinzugefuegt
 
 - **Retry-Politik gegenueber BISTA** (ARCH-014). Bisher gab es keine: Ein
