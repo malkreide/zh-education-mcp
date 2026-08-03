@@ -9,6 +9,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Behoben
 
+- **Ein DNS-Zucken beendete den Tool-Aufruf sofort — und wurde als
+  Egress-Verstoss gemeldet.** `_resolve_and_validate` warf fuer zwei
+  grundverschiedene Lagen denselben `PermissionError`: fuer den
+  Policy-Verstoss (Host loest auf eine interne IP auf, SEC-005) **und** fuer
+  das Scheitern von `socket.getaddrinfo` («Temporary failure in name
+  resolution»). Die Retry-Schleife ueberspringt `PermissionError` bewusst —
+  richtig fuer die Politik, falsch fuer den Ausfall. Bei einem Live-Lauf am
+  3. August 2026 scheiterten drei Tool-Aufrufe hintereinander genau so; der
+  vierte ging durch.
+
+  Die Lagen tragen jetzt eigene Typen, `EgressBlocked` und
+  `UpstreamUnresolvable`, beide weiterhin auf `PermissionError` als
+  gemeinsamer Basis — bestehende `except`-Klauseln und Tests behalten damit
+  ihre Bedeutung, statt still ins Leere zu laufen.
+
+  `UpstreamUnresolvable` wird wiederholt, unter **demselben** Budget,
+  derselben Versuchszahl und derselben Backoff-Kurve wie jeder andere
+  Ausfall; `EgressBlocked` wird weiterhin nie wiederholt. Damit das Budget
+  fuer diesen Pfad auch haelt, laeuft die Aufloesung im Thread-Pool statt im
+  Event-Loop: `getaddrinfo` ist synchron, und was den Loop blockiert, kann
+  die Wanduhr-Deadline nicht schneiden — aus vier Versuchen waeren sonst vier
+  Blockaden ueber das Budget hinaus geworden.
+
+  `_handle_error` trennt die Meldungen: Ein Aufloeser-Ausfall verweist nicht
+  mehr auf die Egress-Konfiguration, wo dabei nichts zu finden ist, sondern
+  sagt, dass es voruebergehend ist und ein erneuter Versuch die richtige
+  Handlung. Die sanitisierte Form bleibt (OBS-002, keine `str(e)`-Leaks).
+
 - **Vier von sechs Datensaetzen waren gegen die echte API kaputt: BISTA hat die
   Schreibweise der Kopfzeile gewechselt.** Der Code las `r["Schulgemeinde"]`,
   die Quelle liefert `schulgemeinde`. Der Zugriff ergab keinen Treffer,

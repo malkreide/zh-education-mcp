@@ -9,7 +9,7 @@ import time
 import httpx
 
 from .constants import BISTA_API, CACHE_TTL
-from .http_client import _http_get
+from .http_client import UpstreamUnresolvable, _http_get
 from .logging_setup import log
 
 # ─────────────────────────── Cache ─────────────────────────────────────────────
@@ -53,6 +53,16 @@ def _handle_error(e: Exception) -> str:
     # ein aufgebrauchtes Budget in den Zweig «unerwarteter interner Fehler».
     if isinstance(e, httpx.TimeoutException | TimeoutError):
         return "Fehler: Zeitüberschreitung. Der Dienst antwortet nicht. Bitte erneut versuchen."
+    # Reihenfolge ist hier die Aussage: ``UpstreamUnresolvable`` **ist** ein
+    # ``PermissionError`` (gemeinsame Basis, damit bestehende Handler weiter
+    # greifen). Stünde der Egress-Zweig zuerst, verschluckte er den
+    # Auflöser-Ausfall wieder und schickte Nutzende in die Egress-Konfiguration,
+    # wo bei einem DNS-Aussetzer nichts zu finden ist.
+    if isinstance(e, UpstreamUnresolvable):
+        return (
+            "Fehler: Die Adresse der Datenquelle liess sich gerade nicht auflösen (DNS). "
+            "Das ist meist vorübergehend — bitte erneut versuchen."
+        )
     if isinstance(e, PermissionError):
         return "Fehler: Ausgehende Anfrage durch Egress-Policy blockiert."
     return "Fehler: Unerwarteter interner Fehler. Bitte später erneut versuchen."
