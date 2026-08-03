@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.7] - 2026-08-03
+
 ### Behoben
 
 - **Der DNS-Retry war nur gegen Mocks belegt.** Die Unit-Tests faelschen
