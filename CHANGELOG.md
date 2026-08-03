@@ -9,6 +9,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Behoben
 
+- **Vier von sechs Datensaetzen waren gegen die echte API kaputt: BISTA hat die
+  Schreibweise der Kopfzeile gewechselt.** Der Code las `r["Schulgemeinde"]`,
+  die Quelle liefert `schulgemeinde`. Der Zugriff ergab keinen Treffer,
+  sondern ein leeres Ergebnis mit der Meldung «Schulgemeinde nicht gefunden» —
+  ein Ausfall, der wie eine Antwort aussieht.
+
+  Stand 3. August 2026 liefern vier der sechs genutzten Datensaetze klein,
+  zwei gross, und zwei mischen **innerhalb** einer Kopfzeile
+  (`gebiet_Bezeichnung`, `staatsangehoerigkeit_ISO2_Code`). Die Schluesselnamen
+  werden deshalb beim Parsen normalisiert, statt eine Schreibweise zu waehlen,
+  die schon zweimal gewechselt hat.
+
+  Die Unit-Tests haben davon nichts gesehen: Ihre Fixtures pinnen die alte
+  Kopfzeile, also blieben sie gruen. Gemeldet hat es allein der Live-Test — den
+  CI per `-m "not live"` ausschliesst.
+
+- **Ein Fuenftel der Zeilen liess die Tools abstuerzen.** BISTA unterdrueckt
+  kleine Fallzahlen aus Datenschutzgruenden und schreibt statt einer Zahl
+  `1 bis 5`; dazu kommen `NULL` und leere Zellen. Betroffen waren 18.6 % der
+  Sek-I- und 18.1 % der Staatsangehoerigkeits-Zeilen. `int("1 bis 5")` wirft,
+  und der Aufrufer sah davon nur «unerwarteter interner Fehler».
+
+  Solche Werte als 0 zu zaehlen waere die schlechtere Antwort gewesen: Die
+  Summe bliebe plausibel, waere still zu tief und durch nichts als falsch
+  erkennbar. Sie werden jetzt aus den Summen ausgenommen, in der Tabelle als
+  `1 bis 5` gezeigt, und **jede betroffene Ausgabe traegt einen Hinweis**, wie
+  viele Zeilen fehlen und dass die echten Werte hoeher liegen (FID-003).
+
+- **`_latest_year` suchte in `Jahr` statt `jahr`** und lieferte darum «Keine
+  Jahresdaten verfuegbar» — derselbe Drift, eine Ebene tiefer.
+
+- **`Staatsangehoerigkeit_ISO2_Code` wurde nie gefunden**, weil die Spalte
+  gemischt geschrieben ist. Die ISO2-Spalte blieb dauerhaft auf «—».
+
 - **Die `_no_sleep`-Fixture griff weiter, als sie durfte.** Sie patchte
   `http_client.asyncio.sleep` — das sieht lokal aus, trifft aber das *Modul*
   `asyncio` und damit jeden Import im Prozess. Jeder Test, der
