@@ -29,6 +29,13 @@ from .constants import (
 )
 from .logging_setup import log
 
+# Backoff-Wartezeiten laufen über diesen Alias, damit ein Test sie durch Patchen
+# *dieses Modul-Attributs* überspringen kann. ``asyncio.sleep`` selbst zu
+# patchen träfe jeden Import im Prozess: Ein Test, der ``asyncio.sleep(0)``
+# benutzt, um dem Event-Loop das Wort zu geben, prüft danach still nichts mehr —
+# er läuft weiter und misst nichts. In ``srgssr-mcp`` ist genau das passiert.
+_sleep = asyncio.sleep
+
 # Wer fragt hier an? Ohne eigenen User-Agent geht der httpx-Default
 # hinaus und der Betreiber der Datenquelle sieht bloss eine Bibliothek.
 # Die Version stammt aus den Paket-Metadaten und kann nicht driften.
@@ -213,7 +220,7 @@ async def _http_get(url: str, params: dict | None = None) -> httpx.Response:
                 delay_s=round(delay, 2),
                 error_type=type(last_error).__name__,
             )
-            await asyncio.sleep(delay)
+            await _sleep(delay)
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             break

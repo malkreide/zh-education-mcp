@@ -224,3 +224,31 @@ async def test_an_exhausted_budget_reads_as_a_timeout_not_an_internal_error():
     from zh_education_mcp.data import _handle_error
 
     assert "Zeitüberschreitung" in _handle_error(TimeoutError())
+
+
+async def test_the_no_sleep_fixture_leaves_the_global_asyncio_sleep_alone():
+    """Die Fixture darf nur die Backoff-Wartezeit abschalten, nicht mehr.
+
+    ``monkeypatch.setattr(http_client.asyncio, "sleep", ...)`` sähe lokal aus,
+    trifft aber das *Modul* ``asyncio`` und damit jeden Import im Prozess. Ein
+    Test, der ``asyncio.sleep(0)`` benutzt, um dem Event-Loop das Wort zu geben,
+    prüft danach still nichts mehr — er läuft weiter und misst nichts. Genau so
+    ist in ``srgssr-mcp`` eine Parallelitäts-Prüfung eingebrochen.
+
+    Deshalb geht der Backoff über ``http_client._sleep``, und dieser Test hält
+    fest, dass ``asyncio.sleep`` intakt bleibt.
+    """
+    import asyncio
+
+    inflight = 0
+    peak = 0
+
+    async def _worker():
+        nonlocal inflight, peak
+        inflight += 1
+        peak = max(peak, inflight)
+        await asyncio.sleep(0)  # muss echt ans Event-Loop abgeben
+        inflight -= 1
+
+    await asyncio.gather(_worker(), _worker())
+    assert peak == 2, "asyncio.sleep gibt nicht mehr ab — die Fixture greift zu weit"
