@@ -45,3 +45,34 @@ def _no_sleep(request, monkeypatch):
 def real_sleep():
     """Die ungepatchte ``asyncio.sleep`` für Tests über echte Zeit."""
     return _REAL_SLEEP
+
+
+async def _close_pooled_client() -> None:
+    """Schliesst den gepoolten Client und gibt das Modul-Attribut frei."""
+    client = http_client._client
+    http_client._client = None
+    if client is not None and not client.is_closed:
+        await client.aclose()
+
+
+@pytest.fixture(autouse=True)
+async def _fresh_pooled_client(request):
+    """Live-Tests bekommen einen eigenen Client — vorher und nachher.
+
+    Der gepoolte Client (SDK-001) ist ein Modul-Global, seine offenen
+    Verbindungen gehören aber dem Event-Loop, in dem sie entstanden sind.
+    pytest-asyncio gibt jedem Test einen frischen Loop; der zweite Live-Test
+    erbte damit einen Client, dessen Verbindungen an einem geschlossenen Loop
+    hängen, und scheiterte mit «Event loop is closed» — an einem Fehler des
+    Testaufbaus, der wie ein Ausfall der Quelle aussieht.
+
+    Unit-Tests merken davon nichts, weil respx die Transport-Schicht ersetzt
+    und gar keine Verbindung aufgebaut wird. Deshalb blieb das latent, bis ein
+    zweiter Live-Test dazukam.
+    """
+    live = "live" in request.keywords
+    if live:
+        await _close_pooled_client()
+    yield
+    if live:
+        await _close_pooled_client()

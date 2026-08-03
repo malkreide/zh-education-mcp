@@ -24,11 +24,23 @@ from zh_education_mcp.constants import (
 
 URL = f"{BISTA_API}/data_uebersicht_alle_lernende"
 
+# Den echten Auflöser festhalten, bevor irgendeine Fixture ihn ersetzt — sonst
+# griffe der Live-Test unten die bereits gepatchte Fassung und liefe still
+# gegen 8.8.8.8 statt gegen echtes DNS. Dieselbe Falle wie bei ``_REAL_SLEEP``
+# in ``conftest``, wo genau das in ``termdat-mcp`` einen Test entwertet hat.
+_REAL_GETADDRINFO = socket.getaddrinfo
+
 
 @pytest.fixture(autouse=True)
-def _stub_dns(monkeypatch):
-    """Egress-Guard hermetisch durchlassen (kein echtes DNS)."""
-    import socket
+def _stub_dns(request, monkeypatch):
+    """Egress-Guard hermetisch durchlassen (kein echtes DNS).
+
+    Ausser in Live-Tests: Dort ist die echte Auflösung Teil dessen, was geprüft
+    wird — ein «Live»-Test gegen einen gestubbten Auflöser prüfte das Gegenteil
+    seines Namens. Dieselbe Ausnahme wie bei ``_no_sleep`` in ``conftest``.
+    """
+    if "live" in request.keywords:
+        return
 
     def fake_getaddrinfo(host, port, *a, **k):
         return [(socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", ("8.8.8.8", port))]
@@ -446,3 +458,76 @@ async def test_the_no_sleep_fixture_leaves_the_global_asyncio_sleep_alone():
 
     await asyncio.gather(_worker(), _worker())
     assert peak == 2, "asyncio.sleep gibt nicht mehr ab — die Fixture greift zu weit"
+
+
+# --- Gegen die echte Quelle -------------------------------------------------
+
+
+@pytest.mark.live
+async def test_live_a_dns_hiccup_costs_an_attempt_not_the_call(monkeypatch):
+    """Der Beleg gegen BISTA selbst: Ein Auflöser-Zucken kostet einen Versuch.
+
+    Die Unit-Tests oben mocken beide Seiten — Auflöser *und* Antwort. Sie
+    zeigen damit, dass die Schleife tut, was sie soll, aber nicht, dass der
+    Aufruf am Ende echte Daten bringt. Genau diese Lücke hat den Fehler
+    ueberhaupt erst durchgelassen: Gemeldet hat ihn am 3.8.2026 ein Live-Lauf,
+    nicht die Suite.
+
+    Hier ist deshalb nur der *erste* Auflösungsversuch gefälscht. Alles danach
+    ist echt: echtes DNS beim zweiten Versuch, echte TLS-Verbindung, echte
+    BISTA-Antwort — und echte Backoff-Wartezeit, weil ``_no_sleep`` für
+    Live-Tests absichtlich nicht greift.
+    """
+    calls = {"n": 0}
+
+    def flaky(host, port, *a, **k):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise socket.gaierror(socket.EAI_AGAIN, "Temporary failure in name resolution")
+        return _REAL_GETADDRINFO(host, port, *a, **k)
+
+    monkeypatch.setattr("zh_education_mcp.http_client.socket.getaddrinfo", flaky)
+
+    # Nicht die Gesamtdauer messen: Die enthält den Netzabruf und wäre auch
+    # ohne jede Wartezeit lang genug, um eine Untergrenze zu bestehen. Gemessen
+    # wird, was der Backoff wirklich abgesessen hat.
+    waited: list[float] = []
+    inner_sleep = hc._sleep
+
+    async def recording_sleep(seconds):
+        started = time.monotonic()
+        await inner_sleep(seconds)
+        waited.append(time.monotonic() - started)
+
+    monkeypatch.setattr(hc, "_sleep", recording_sleep)
+
+    resp = await hc._http_get(URL)
+
+    assert calls["n"] == 2, "der zweite Versuch hat nicht neu aufgelöst"
+    assert resp.status_code == 200
+    # Kein Feldname wird hier gepinnt: BISTA hat die Schreibweise der Kopfzeile
+    # schon gewechselt (siehe ``_normalise_keys``). Geprüft wird, dass eine
+    # CSV-Kopfzeile mit Datenzeilen dahinter ankam — nicht welche.
+    lines = resp.text.splitlines()
+    assert "," in lines[0] and len(lines) > 1, "keine CSV-Antwort erhalten"
+    # Die echte Wartezeit ist Teil der Zusage: Gegenüber der Quelle ist sie die
+    # Höflichkeit, die ``_no_sleep`` für Live-Tests absichtlich stehen lässt.
+    # Der Backoff liegt beim ersten Retry in [1s, 3s].
+    assert len(waited) == 1, f"unerwartet viele Wartezeiten: {waited}"
+    assert 1.0 <= waited[0] <= 4.0, f"Backoff nicht abgesessen: {waited[0]:.2f}s"
+
+
+@pytest.mark.live
+def test_live_the_real_host_resolves_past_the_egress_guard():
+    """SEC-005 gegen die Wirklichkeit statt gegen einen Stub.
+
+    Die Unit-Tests prüfen die Blocklist an erfundenen Antworten. Ob der echte
+    BISTA-Host heute auf etwas auflöst, das der Guard durchlässt, sagt nur
+    dieser Test — und er hält zugleich fest, dass die Stub-Fixture für
+    Live-Tests wirklich aussetzt: Käme hier ``8.8.8.8`` heraus, liefe der
+    «Live»-Test gegen den Stub.
+    """
+    host = "www.bista.zh.ch"
+    real = sorted({i[4][0] for i in _REAL_GETADDRINFO(host, 443, proto=socket.IPPROTO_TCP)})
+    assert hc._resolve_and_validate(host) == real
+    assert all(not hc._ip_is_blocked(ip) for ip in real)
