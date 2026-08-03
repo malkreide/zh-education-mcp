@@ -49,7 +49,13 @@ dev = [
     "pytest-asyncio>=0.23.0",
     "pytest-cov>=5.0.0",
     "respx>=0.21.0",
-    "ruff>=0.4.0",
+    # Obergrenze mit Absicht: ruffs Formatierer und Default-Regelsatz ändern
+    # sich zwischen Minor-Versionen. Ohne sie installiert ein frischer Klon die
+    # jeweils neuste Version, formatiert danach anders als das gepinnte
+    # `ruff==0.16.1` in `ci.yml` — und CI meldet einen Formatfehler an Code, den
+    # niemand angefasst hat. Genau das ist am 3. August passiert.
+    # Beim Anheben: diese Grenze und den Pin in `ci.yml` gemeinsam bewegen.
+    "ruff>=0.16,<0.17",
 ]
 # Optionales OpenTelemetry-Tracing (OBS-006). Aktivierung via MCP_OTEL_ENABLED=true.
 otel = [
