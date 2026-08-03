@@ -9,6 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Behoben
 
+- **Der DNS-Retry war nur gegen Mocks belegt.** Die Unit-Tests faelschen
+  Aufloeser *und* Antwort; sie zeigen, dass die Schleife tut, was sie soll,
+  aber nicht, dass der Aufruf am Ende echte Daten bringt. Genau diese Luecke
+  hat den Fehler ueberhaupt erst durchgelassen — gemeldet hat ihn am
+  3. August 2026 ein Live-Lauf, nicht die Suite.
+
+  Ein Live-Test faelscht jetzt nur noch den **ersten** Aufloesungsversuch und
+  laesst alles danach echt: echtes DNS beim zweiten Versuch, echte Verbindung,
+  echte BISTA-Antwort, echte Backoff-Wartezeit. Ein zweiter Live-Test prueft
+  die Egress-Blocklist (SEC-005) gegen die echte Antwort des echten Hosts
+  statt gegen eine erfundene.
+
+  Zwei Nebenbefunde, beide behoben: Die DNS-Stub-Fixture in
+  `tests/test_retry_policy.py` setzt fuer Live-Tests aus (ein «Live»-Test
+  gegen einen gestubbten Aufloeser prueft das Gegenteil seines Namens), und
+  der gepoolte HTTP-Client wird vor und nach jedem Live-Test frisch gesetzt:
+  Seine offenen Verbindungen gehoeren dem Event-Loop, in dem sie entstanden,
+  und pytest-asyncio gibt jedem Test einen eigenen. Der zweite Live-Test
+  scheiterte deshalb mit «Event loop is closed» — an einem Fehler des
+  Testaufbaus, der wie ein Ausfall der Quelle aussieht. Unit-Tests merken
+  davon nichts, weil respx die Transport-Schicht ersetzt; latent war es,
+  bis ein zweiter Live-Test dazukam.
+
 - **Ein DNS-Zucken beendete den Tool-Aufruf sofort — und wurde als
   Egress-Verstoss gemeldet.** `_resolve_and_validate` warf fuer zwei
   grundverschiedene Lagen denselben `PermissionError`: fuer den
