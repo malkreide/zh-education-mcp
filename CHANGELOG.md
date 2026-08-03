@@ -7,6 +7,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Hinzugefuegt
+
+- **Retry-Politik gegenueber BISTA** (ARCH-014). Bisher gab es keine: Ein
+  einzelner Netzwerkfehler, ein Timeout oder ein 503 beendete den Tool-Aufruf,
+  obwohl der naechste Versuch Sekunden spaeter geklappt haette. Genau so fielen
+  am 1. August in `swiss-efv-mcp` vier Live-Tests wegen eines voruebergehenden
+  Ausfalls der Quelle.
+
+  Wiederholt werden Netzwerkfehler, Timeouts, 5xx und 429 — vier Versuche. Ein
+  4xx ausser 429 ist eine Aussage ueber die Anfrage und keine ueber den Moment
+  und scheitert weiterhin sofort. `PermissionError` aus dem Egress-Guard ist
+  eine Policy-Entscheidung und wird nie wiederholt: Vier Mal dieselbe verbotene
+  Anfrage zu stellen macht sie nicht erlaubter.
+
+- **`Retry-After` wird gelesen und schlaegt die eigene Backoff-Kurve.** Bei 429
+  und 503 sagt die Quelle im Header, wann sie wieder mag — als Sekundenzahl
+  oder als HTTP-Datum; beide Formen kommen vor, beide werden gelesen
+  (RFC 9110 §10.2.3). Ein unbrauchbarer Header fuehrt zurueck auf die Kurve
+  statt zum Absturz — auf dem Fehlerpfad ist das der Unterschied zwischen einer
+  Verzoegerung und einem zweiten Fehler.
+
+- **Backoff ist gestreut (Jitter).** Eine reine `2**attempt`-Kurve ist
+  deterministisch: Faellt BISTA aus, waehrend mehrere Clients es abfragen,
+  laufen deren Retries im Gleichtakt, und die Last kommt als Welle zurueck —
+  genau wenn die Quelle sich erholt. Exponentielle Wartezeiten landen in
+  `[0.5x, 1.5x]`; auf einem `Retry-After` ist die Streuung einseitig
+  (`[1.0x, 1.25x]`), weil frueher wiederzukommen die Missachtung derselben
+  Angabe waere, die man gerade liest. Deckel von 20 s auf jede Einzelwartezeit,
+  angewandt **nach** dem Jittern — die andere Reihenfolge macht den Deckel zu
+  gar keiner Schranke.
+
+- **Gesamtbudget von 25 s ueber den ganzen Aufruf.** Eine Versuchszahl ist
+  keine Grenze: Vier Versuche a 30 s Timeout plus Backoff sind ueber zwei
+  Minuten, und die Zahl `4` sagt das nirgends. Entscheidender ist, dass die
+  massgebliche Grenze gar nicht uns gehoert — der Aufrufer hat sein eigenes
+  Timeout, und jenseits davon hoert niemand mehr zu. Der Anker ist gemessen:
+  Das Python-MCP-SDK setzt `MCP_DEFAULT_TIMEOUT = 30.0`.
+
+  Das Budget haengt an einer `asyncio.timeout`-Deadline, nicht am
+  httpx-Timeout: httpx begrenzt pro Operation, und sein Read-Timeout beginnt
+  mit jedem Chunk von vorn — eine langsam troepfelnde Antwort wuerde das Budget
+  sonst ueberdauern, ohne dass ein einzelner Read ablaeuft.
+
+### Behoben
+
+- **Ein aufgebrauchtes Gesamtbudget las sich als «unerwarteter interner
+  Fehler».** Es wirft den builtin `TimeoutError`, `_handle_error` kannte aber
+  nur `httpx.TimeoutException`. Fuer den Aufrufer ist beides dasselbe: Es hat
+  zu lange gedauert.
+
 ## [0.2.6] - 2026-08-02
 
 ### Behoben

@@ -47,7 +47,11 @@ def _handle_error(e: Exception) -> str:
         if code in (502, 503):
             return "Fehler: Dienst vorübergehend nicht verfügbar. Bitte erneut versuchen."
         return f"Fehler: API-Anfrage fehlgeschlagen (HTTP {code})."
-    if isinstance(e, httpx.TimeoutException):
+    # ``TimeoutError`` (builtin) kommt aus dem Gesamtbudget der Retry-Schleife,
+    # ``httpx.TimeoutException`` aus einer einzelnen Operation. Für den Aufrufer
+    # ist beides dasselbe: Es hat zu lange gedauert. Ohne den builtin-Fall fiele
+    # ein aufgebrauchtes Budget in den Zweig «unerwarteter interner Fehler».
+    if isinstance(e, httpx.TimeoutException | TimeoutError):
         return "Fehler: Zeitüberschreitung. Der Dienst antwortet nicht. Bitte erneut versuchen."
     if isinstance(e, PermissionError):
         return "Fehler: Ausgehende Anfrage durch Egress-Policy blockiert."
