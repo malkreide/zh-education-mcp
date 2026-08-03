@@ -225,9 +225,7 @@ async def _http_get(url: str, params: dict | None = None) -> httpx.Response:
             # Read abliefe. ``asyncio.timeout`` ist die Wanduhr-Deadline, die
             # das Budget tatsächlich verspricht.
             async with asyncio.timeout(remaining):
-                resp = await client.get(
-                    url, params=params, timeout=min(HTTP_TIMEOUT, remaining)
-                )
+                resp = await client.get(url, params=params, timeout=min(HTTP_TIMEOUT, remaining))
                 resp.raise_for_status()
                 return resp
         except TimeoutError as exc:  # Budget aufgebraucht, nicht bloss dieser Versuch

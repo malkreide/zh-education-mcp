@@ -48,9 +48,7 @@ def _status_error(status: int, retry_after: str | None = None) -> httpx.HTTPStat
 
 @respx.mock
 async def test_retries_a_503_and_then_succeeds():
-    route = respx.get(URL).mock(
-        side_effect=[httpx.Response(503), httpx.Response(200, text="ok")]
-    )
+    route = respx.get(URL).mock(side_effect=[httpx.Response(503), httpx.Response(200, text="ok")])
     resp = await hc._http_get(URL)
     assert resp.text == "ok"
     assert route.call_count == 2
@@ -77,9 +75,7 @@ async def test_a_404_fails_fast_without_retry():
 
 @respx.mock
 async def test_a_429_is_retried_although_it_is_a_4xx():
-    route = respx.get(URL).mock(
-        side_effect=[httpx.Response(429), httpx.Response(200, text="ok")]
-    )
+    route = respx.get(URL).mock(side_effect=[httpx.Response(429), httpx.Response(200, text="ok")])
     await hc._http_get(URL)
     assert route.call_count == 2
 
