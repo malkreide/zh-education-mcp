@@ -16,7 +16,14 @@ from .constants import (
     EP_UEBERSICHT,
     EP_WOHNORT,
 )
-from .data import _fetch_csv, _filter_rows, _handle_error, _latest_year
+from .data import (
+    _fetch_csv,
+    _filter_rows,
+    _handle_error,
+    _latest_year,
+    _parse_count,
+    _suppression_note,
+)
 from .http_client import lifespan
 from .models import (
     ListSchulgemeindensInput,
@@ -128,7 +135,7 @@ async def zh_edu_list_schulgemeinden(
     """
     try:
         rows = await _fetch_csv(EP_SEK1, ctx)
-        gemeinden = sorted({r["Schulgemeinde"] for r in rows if r.get("Schulgemeinde")})
+        gemeinden = sorted({r["schulgemeinde"] for r in rows if r.get("schulgemeinde")})
 
         if params.suchbegriff:
             needle = params.suchbegriff.lower()
@@ -191,10 +198,10 @@ async def zh_edu_schulkreis_trend(params: SchulkreisTrendInput, ctx: Context | N
     """
     try:
         rows = await _fetch_csv(EP_SEK1, ctx)
-        matched = _filter_rows(rows, Schulgemeinde=params.schulgemeinde)
+        matched = _filter_rows(rows, schulgemeinde=params.schulgemeinde)
 
         if not matched:
-            gemeinden = sorted({r["Schulgemeinde"] for r in rows if r.get("Schulgemeinde")})
+            gemeinden = sorted({r["schulgemeinde"] for r in rows if r.get("schulgemeinde")})
             suggestions = [g for g in gemeinden if params.schulgemeinde.lower()[:4] in g.lower()][
                 :5
             ]
@@ -212,8 +219,8 @@ async def zh_edu_schulkreis_trend(params: SchulkreisTrendInput, ctx: Context | N
             return "Keine Jahresdaten verfügbar."
 
         cutoff = latest - params.letzte_n_jahre + 1
-        filtered = [r for r in matched if r.get("Jahr", "").isdigit() and int(r["Jahr"]) >= cutoff]
-        filtered.sort(key=lambda r: (int(r.get("Jahr", 0)), r.get("Anforderungstyp", "")))
+        filtered = [r for r in matched if r.get("jahr", "").isdigit() and int(r["jahr"]) >= cutoff]
+        filtered.sort(key=lambda r: (int(r.get("jahr", 0)), r.get("anforderungstyp", "")))
 
         if params.response_format == ResponseFormat.JSON:
             return _envelope(filtered, schulgemeinde=params.schulgemeinde)
@@ -221,13 +228,17 @@ async def zh_edu_schulkreis_trend(params: SchulkreisTrendInput, ctx: Context | N
         lines = [f"# Trend {params.schulgemeinde} ({cutoff}–{latest})\n"]
 
         by_year: dict[int, dict[str, int]] = {}
+        suppressed = 0
         for r in filtered:
-            yr = int(r["Jahr"])
-            typ = r.get("Anforderungstyp", "Unbekannt")
-            anzahl = int(r.get("Anzahl", 0))
+            yr = int(r["jahr"])
+            typ = r.get("anforderungstyp", "Unbekannt")
+            anzahl = _parse_count(r.get("anzahl"))
+            if anzahl is None:  # «1 bis 5» — unterdrueckt, nicht null
+                suppressed += 1
+                continue
             by_year.setdefault(yr, {})[typ] = anzahl
 
-        typen = sorted({r.get("Anforderungstyp", "") for r in filtered} - {""})
+        typen = sorted({r.get("anforderungstyp", "") for r in filtered} - {""})
         header = "| Jahr | " + " | ".join(typen) + " | Total |"
         sep = "|------|" + "|".join(["------:"] * len(typen)) + "|------:|"
         lines.extend([header, sep])
@@ -248,6 +259,9 @@ async def zh_edu_schulkreis_trend(params: SchulkreisTrendInput, ctx: Context | N
                 f"\n**Veränderung {years_list[0]}→{years_list[-1]}:** {sign}{diff} Lernende"
             )
 
+        note = _suppression_note(suppressed, len(filtered))
+        if note:
+            lines.append(note)
         return "\n".join(lines) + _source_footer()
 
     except Exception as e:
@@ -294,9 +308,9 @@ async def zh_edu_overview(params: UebersichtInput, ctx: Context | None = None) -
         if jahr is None:
             return "Keine Jahresdaten verfügbar."
 
-        filtered = [r for r in rows if r.get("Jahr") == str(jahr)]
+        filtered = [r for r in rows if r.get("jahr") == str(jahr)]
         if params.stufe:
-            filtered = _filter_rows(filtered, Stufe=params.stufe)
+            filtered = _filter_rows(filtered, stufe=params.stufe)
 
         if not filtered:
             return _not_found(
@@ -309,9 +323,13 @@ async def zh_edu_overview(params: UebersichtInput, ctx: Context | None = None) -
         lines = [f"# Übersicht Lernende Kanton Zürich — {jahr}\n"]
 
         by_stufe: dict[str, int] = {}
+        suppressed = 0
         for r in filtered:
-            stufe = r.get("Stufe", "Unbekannt")
-            anzahl = int(r.get("Anzahl", 0))
+            stufe = r.get("stufe", "Unbekannt")
+            anzahl = _parse_count(r.get("anzahl"))
+            if anzahl is None:
+                suppressed += 1
+                continue
             by_stufe[stufe] = by_stufe.get(stufe, 0) + anzahl
 
         lines.append("| Stufe | Lernende |")
@@ -322,6 +340,12 @@ async def zh_edu_overview(params: UebersichtInput, ctx: Context | None = None) -
             total += by_stufe[stufe]
         lines.append(f"| **Total** | **{total:,}** |")
 
+        note = _suppression_note(suppressed, len(filtered))
+        if note:
+            lines.append(note)
+        note = _suppression_note(suppressed, len(filtered))
+        if note:
+            lines.append(note)
         return "\n".join(lines) + _source_footer()
 
     except Exception as e:
@@ -363,7 +387,7 @@ async def zh_edu_sek1_profil(params: Sek1ProfilInput, ctx: Context | None = None
     """
     try:
         rows = await _fetch_csv(EP_SEK1, ctx)
-        matched = _filter_rows(rows, Schulgemeinde=params.schulgemeinde)
+        matched = _filter_rows(rows, schulgemeinde=params.schulgemeinde)
 
         if not matched:
             return _not_found(
@@ -377,7 +401,7 @@ async def zh_edu_sek1_profil(params: Sek1ProfilInput, ctx: Context | None = None
         if jahr is None:
             return "Keine Jahresdaten verfügbar."
 
-        year_data = [r for r in matched if r.get("Jahr") == str(jahr)]
+        year_data = [r for r in matched if r.get("jahr") == str(jahr)]
         if not year_data:
             return _not_found(
                 params.response_format,
@@ -393,14 +417,21 @@ async def zh_edu_sek1_profil(params: Sek1ProfilInput, ctx: Context | None = None
         lines.append("| Anforderungstyp | Lernende | Anteil |")
         lines.append("|-----------------|--------:|-------:|")
 
-        total = sum(int(r.get("Anzahl", 0)) for r in year_data)
-        for r in sorted(year_data, key=lambda x: int(x.get("Anzahl", 0)), reverse=True):
-            typ = r.get("Anforderungstyp", "Unbekannt")
-            anzahl = int(r.get("Anzahl", 0))
-            pct = f"{anzahl / total * 100:.1f}%" if total > 0 else "—"
-            lines.append(f"| {typ} | {anzahl:,} | {pct} |")
+        counted = [(r, _parse_count(r.get("anzahl"))) for r in year_data]
+        suppressed = sum(1 for _, n in counted if n is None)
+        total = sum(n for _, n in counted if n is not None)
+        for r, _n in sorted(counted, key=lambda p: (p[1] is None, -(p[1] or 0))):
+            typ = r.get("anforderungstyp", "Unbekannt")
+            if _n is None:
+                lines.append(f"| {typ} | 1 bis 5 | — |")
+                continue
+            pct = f"{_n / total * 100:.1f}%" if total > 0 else "—"
+            lines.append(f"| {typ} | {_n:,} | {pct} |")
         lines.append(f"| **Total** | **{total:,}** | **100%** |")
 
+        note = _suppression_note(suppressed, len(year_data))
+        if note:
+            lines.append(note)
         return "\n".join(lines) + _source_footer()
 
     except Exception as e:
@@ -445,7 +476,7 @@ async def zh_edu_staatsangehoerigkeiten(
     """
     try:
         rows = await _fetch_csv(EP_NAT_REGIONAL, ctx)
-        matched = _filter_rows(rows, Schulgemeinde=params.schulgemeinde)
+        matched = _filter_rows(rows, schulgemeinde=params.schulgemeinde)
 
         if not matched:
             return _not_found(
@@ -459,14 +490,22 @@ async def zh_edu_staatsangehoerigkeiten(
         if jahr is None:
             return "Keine Jahresdaten verfügbar."
 
-        year_data = [r for r in matched if r.get("Jahr") == str(jahr)]
-        year_data.sort(key=lambda r: int(r.get("Anzahl", 0)), reverse=True)
+        year_data = [r for r in matched if r.get("jahr") == str(jahr)]
+        # Unterdrueckte Werte ans Ende, nicht als 0 mitten hinein sortiert.
+        year_data.sort(
+            key=lambda r: (
+                _parse_count(r.get("anzahl")) is None,
+                -(_parse_count(r.get("anzahl")) or 0),
+            )
+        )
         top = year_data[: params.top_n]
 
         if params.response_format == ResponseFormat.JSON:
             return _envelope(top, schulgemeinde=params.schulgemeinde, jahr=jahr, top_n=params.top_n)
 
-        total = sum(int(r.get("Anzahl", 0)) for r in year_data)
+        counts = [_parse_count(r.get("anzahl")) for r in year_data]
+        suppressed = sum(1 for n in counts if n is None)
+        total = sum(n for n in counts if n is not None)
         lines = [f"# Staatsangehörigkeiten {params.schulgemeinde} — {jahr}\n"]
         lines.append(
             f"Top {params.top_n} von {len(year_data)} Nationalitäten (Total: {total:,} Lernende)\n"
@@ -475,12 +514,18 @@ async def zh_edu_staatsangehoerigkeiten(
         lines.append("|---|---------------------|------|--------:|-------:|")
 
         for i, r in enumerate(top, 1):
-            nat = r.get("Staatsangehoerigkeit", "Unbekannt")
-            iso2 = r.get("Staatsangehoerigkeit_ISO2_Code", "—")
-            anzahl = int(r.get("Anzahl", 0))
+            nat = r.get("staatsangehoerigkeit", "Unbekannt")
+            iso2 = r.get("staatsangehoerigkeit_iso2_code", "—")
+            anzahl = _parse_count(r.get("anzahl"))
+            if anzahl is None:
+                lines.append(f"| {i} | {nat} | {iso2} | 1 bis 5 | — |")
+                continue
             pct = f"{anzahl / total * 100:.1f}%" if total > 0 else "—"
             lines.append(f"| {i} | {nat} | {iso2} | {anzahl:,} | {pct} |")
 
+        note = _suppression_note(suppressed, len(year_data))
+        if note:
+            lines.append(note)
         return "\n".join(lines) + _source_footer()
 
     except Exception as e:
@@ -525,16 +570,23 @@ async def zh_edu_maturitaetsquote(params: MaturitaetsquoteInput, ctx: Context | 
 
         filtered = rows
         if params.gemeinde:
-            filtered = _filter_rows(filtered, Gemeinde=params.gemeinde)
+            filtered = _filter_rows(filtered, gemeinde=params.gemeinde)
         if params.bezirk:
-            filtered = _filter_rows(filtered, Bezirk=params.bezirk)
+            filtered = _filter_rows(filtered, bezirk=params.bezirk)
 
         if not filtered:
             return _not_found(
                 params.response_format, "Keine Daten für die angegebenen Filter gefunden."
             )
 
-        filtered.sort(key=lambda r: float(r.get("Maturitaetsquote_gymnasial", 0)), reverse=True)
+        def _quote(r: dict) -> float:
+            raw = (r.get("maturitaetsquote_gymnasial") or "").strip()
+            try:
+                return float(raw)
+            except ValueError:  # leere Zelle — ans Ende statt Absturz
+                return -1.0
+
+        filtered.sort(key=_quote, reverse=True)
 
         if params.response_format == ResponseFormat.JSON:
             return _envelope(filtered)
@@ -550,11 +602,11 @@ async def zh_edu_maturitaetsquote(params: MaturitaetsquoteInput, ctx: Context | 
         lines.append("|----------|--------|----------:|-----------:|------:|")
 
         for r in filtered[:50]:
-            gem = r.get("Gemeinde", "—")
-            bez = r.get("Bezirk", "—")
-            abschl = r.get("Total_Abschluss_gymnasial", "—")
+            gem = r.get("gemeinde", "—")
+            bez = r.get("bezirk", "—")
+            abschl = r.get("total_abschluss_gymnasial", "—")
             pop = r.get("Total_19_Jahre_alt", "—")
-            quote = r.get("Maturitaetsquote_gymnasial", "—")
+            quote = r.get("maturitaetsquote_gymnasial", "—")
             try:
                 quote_str = f"{float(quote) * 100:.1f}%" if quote != "—" else "—"
             except (ValueError, TypeError):
@@ -606,9 +658,9 @@ async def zh_edu_wohnort_trend(params: WohnortTrendInput, ctx: Context | None = 
 
         filtered = rows
         if params.gebiet:
-            filtered = _filter_rows(filtered, Gebiet_Bezeichnung=params.gebiet)
+            filtered = _filter_rows(filtered, gebiet_bezeichnung=params.gebiet)
         if params.stufe:
-            filtered = _filter_rows(filtered, Stufe=params.stufe)
+            filtered = _filter_rows(filtered, stufe=params.stufe)
 
         if not filtered:
             return _not_found(
@@ -620,7 +672,7 @@ async def zh_edu_wohnort_trend(params: WohnortTrendInput, ctx: Context | None = 
             return "Keine Jahresdaten verfügbar."
 
         cutoff = latest - params.letzte_n_jahre + 1
-        filtered = [r for r in filtered if r.get("Jahr", "").isdigit() and int(r["Jahr"]) >= cutoff]
+        filtered = [r for r in filtered if r.get("jahr", "").isdigit() and int(r["jahr"]) >= cutoff]
 
         if not filtered:
             return f"Keine Daten im Zeitraum {cutoff}–{latest} gefunden."
@@ -635,9 +687,14 @@ async def zh_edu_wohnort_trend(params: WohnortTrendInput, ctx: Context | None = 
             lines.append(f"**Filter Stufe:** *{params.stufe}*")
 
         by_year: dict[int, int] = {}
+        suppressed = 0
         for r in filtered:
-            yr = int(r["Jahr"])
-            by_year[yr] = by_year.get(yr, 0) + int(r.get("Anzahl", 0))
+            yr = int(r["jahr"])
+            n = _parse_count(r.get("anzahl"))
+            if n is None:
+                suppressed += 1
+                continue
+            by_year[yr] = by_year.get(yr, 0) + n
 
         lines.append("\n| Jahr | Lernende |")
         lines.append("|------|--------:|")
@@ -652,6 +709,9 @@ async def zh_edu_wohnort_trend(params: WohnortTrendInput, ctx: Context | None = 
                 f"\n**Veränderung {years_list[0]}→{years_list[-1]}:** {sign}{diff} Lernende"
             )
 
+        note = _suppression_note(suppressed, len(filtered))
+        if note:
+            lines.append(note)
         return "\n".join(lines) + _source_footer()
 
     except Exception as e:
@@ -698,9 +758,9 @@ async def zh_edu_mittelschulen(params: MittelschulenInput, ctx: Context | None =
         if jahr is None:
             return "Keine Jahresdaten verfügbar."
 
-        filtered = [r for r in rows if r.get("Jahr") == str(jahr)]
+        filtered = [r for r in rows if r.get("jahr") == str(jahr)]
         if params.mittelschultyp:
-            filtered = _filter_rows(filtered, Mittelschultyp=params.mittelschultyp)
+            filtered = _filter_rows(filtered, mittelschultyp=params.mittelschultyp)
 
         if not filtered:
             return _not_found(
@@ -717,9 +777,14 @@ async def zh_edu_mittelschulen(params: MittelschulenInput, ctx: Context | None =
             lines.append(f"**Filter:** *{params.mittelschultyp}*\n")
 
         by_typ: dict[str, int] = {}
+        suppressed = 0
         for r in filtered:
-            typ = r.get("Mittelschultyp", "Unbekannt")
-            by_typ[typ] = by_typ.get(typ, 0) + int(r.get("Anzahl", 0))
+            typ = r.get("mittelschultyp", "Unbekannt")
+            n = _parse_count(r.get("anzahl"))
+            if n is None:
+                suppressed += 1
+                continue
+            by_typ[typ] = by_typ.get(typ, 0) + n
 
         lines.append("| Mittelschultyp | Lernende |")
         lines.append("|----------------|--------:|")

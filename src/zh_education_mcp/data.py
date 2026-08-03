@@ -58,6 +58,28 @@ def _handle_error(e: Exception) -> str:
     return "Fehler: Unerwarteter interner Fehler. Bitte später erneut versuchen."
 
 
+def _normalise_keys(row: dict) -> dict:
+    """Senkt die Spaltennamen einer CSV-Zeile auf Kleinschreibung.
+
+    BISTA schreibt die Kopfzeile nicht einheitlich, und die Schreibweise hat
+    sich bereits geändert: Am 3. August 2026 lieferten vier der sechs genutzten
+    Datensätze `schulgemeinde`, zwei `Schulgemeinde` — und zwei mischten sogar
+    innerhalb einer Kopfzeile (`gebiet_Bezeichnung`,
+    `staatsangehoerigkeit_ISO2_Code`).
+
+    Der Code hatte die Grossschreibung fest verdrahtet und fand danach nichts
+    mehr: `r["Schulgemeinde"]` gegen eine Zeile mit `schulgemeinde` ergibt
+    keinen Treffer, sondern ein leeres Ergebnis mit der Meldung «nicht
+    gefunden» — ein Ausfall, der wie eine Antwort aussieht.
+
+    Hier zu normalisieren ist der einzige Ort, an dem es einmal geschehen muss,
+    und macht den Rest des Codes gegen den nächsten Wechsel unempfindlich. Die
+    Alternative — auf die neue Schreibweise umstellen — hätte beim nächsten
+    Rückwechsel dasselbe Loch gerissen.
+    """
+    return {(k or "").lower(): v for k, v in row.items()}
+
+
 async def _fetch_csv(endpoint: str, ctx: object | None = None) -> list[dict]:
     """Holt CSV-Daten von einem BISTA-Endpunkt und gibt eine Liste von Dicts zurück.
 
@@ -78,7 +100,7 @@ async def _fetch_csv(endpoint: str, ctx: object | None = None) -> list[dict]:
     resp = await _http_get(f"{BISTA_API}/{endpoint}")
     resp.raise_for_status()
     reader = csv.DictReader(io.StringIO(resp.text))
-    rows = list(reader)
+    rows = [_normalise_keys(row) for row in reader]
     _cache_set(endpoint, rows)
     ms = round((time.perf_counter() - start) * 1000)
     log.info("fetch_ok", endpoint=endpoint, rows=len(rows), ms=ms)
@@ -101,7 +123,41 @@ def _filter_rows(rows: list[dict], **filters: str | int | None) -> list[dict]:
     return result
 
 
-def _latest_year(rows: list[dict], year_field: str = "Jahr") -> int | None:
+def _parse_count(value: object) -> int | None:
+    """Zahl aus einem BISTA-Zählwert, oder ``None``, wenn keine da ist.
+
+    BISTA unterdrückt kleine Fallzahlen aus Datenschutzgründen und schreibt
+    statt einer Zahl einen Bereich: ``1 bis 5``. Dazu kommt ``NULL`` und die
+    leere Zelle. Am 3. August 2026 waren das 18.6 % der Sek-I-Zeilen und
+    18.1 % der Staatsangehörigkeits-Zeilen — kein Randfall.
+
+    ``int("1 bis 5")`` wirft, und der Aufrufer sah davon nur «unerwarteter
+    interner Fehler». Sie als 0 zu zählen wäre schlimmer: Die Summe wäre
+    plausibel, still zu tief und durch nichts als falsch erkennbar. Deshalb
+    ``None`` — der Aufrufer entscheidet, und die Tools weisen die Zahl der
+    unterdrückten Zeilen aus, statt sie verschwinden zu lassen (FID-003).
+    """
+    raw = str(value if value is not None else "").strip()
+    return int(raw) if raw.isdigit() else None
+
+
+def _suppression_note(suppressed: int, total: int) -> str | None:
+    """Hinweiszeile auf unterdrückte Werte, oder ``None``, wenn es keine gibt.
+
+    Eine Summe, aus der ein Fünftel der Zeilen stillschweigend fehlt, ist keine
+    Summe — sie ist eine Untergrenze, die sich als Summe ausgibt.
+    """
+    if suppressed <= 0:
+        return None
+    return (
+        f"\n> **Hinweis:** {suppressed} von {total} Zeilen enthalten keinen Zahlenwert "
+        f"(BISTA schreibt bei kleinen Fallzahlen «1 bis 5» statt einer Zahl). "
+        f"Sie sind in den Summen **nicht** enthalten; die echten Werte liegen "
+        f"entsprechend höher."
+    )
+
+
+def _latest_year(rows: list[dict], year_field: str = "jahr") -> int | None:
     """Ermittelt das aktuellste Jahr aus den Daten."""
     years = {int(r[year_field]) for r in rows if r.get(year_field, "").isdigit()}
     return max(years) if years else None
