@@ -45,6 +45,30 @@ USER_AGENT = f"zh-education-mcp/{__version__} (+https://github.com/malkreide/zh-
 ALLOWED_HOSTS: frozenset[str] = frozenset({"www.bista.zh.ch"})
 
 
+class EgressBlocked(PermissionError):
+    """Die Anfrage verstösst gegen die Egress-Politik (SEC-004/005/021).
+
+    Eine Entscheidung, kein Ausfall: Sie fällt beim nächsten Versuch genauso
+    aus. Wiederholen hiesse, dieselbe verbotene Anfrage viermal zu stellen.
+    """
+
+
+class UpstreamUnresolvable(PermissionError):
+    """Der Name der Datenquelle liess sich nicht auflösen.
+
+    Kein Politik-Verstoss, sondern ein Ausfall des Auflösers («Temporary
+    failure in name resolution») — derselbe transiente Fehlschlag wie ein
+    ``httpx.ConnectError``, beim nächsten Versuch oft weg.
+
+    Erbt trotzdem von ``PermissionError``: Bis zur Trennung warf
+    ``_resolve_and_validate`` für **beide** Lagen ``PermissionError``. Fiele
+    diese Basis weg, liefe jedes bestehende ``except PermissionError`` still
+    ins Leere und ein Auflöser-Ausfall käme beim Aufrufer als «unerwarteter
+    interner Fehler» an — eine stille Bedeutungsänderung an Stellen, die
+    dieser Diff gar nicht anfasst.
+    """
+
+
 def _ip_is_blocked(ip: str) -> bool:
     """True, wenn die IP nicht öffentlich routbar ist (private/loopback/
     link-local/metadata/reserved) — gegen SSRF auf interne Ziele (SEC-005)."""
@@ -68,17 +92,23 @@ def _resolve_and_validate(host: str) -> list[str]:
     Wird vor dem Request aufgerufen (DNS-Pinning-Kern gegen TOCTOU/DNS-Rebinding,
     SEC-005): Auflösung erfolgt einmal hier; eine aufgelöste interne IP führt zum
     harten Abbruch, bevor überhaupt verbunden wird. Gibt die geprüften IPs zurück.
+
+    Die beiden Fehlausgänge sind verschiedene Lagen und tragen deshalb
+    verschiedene Typen: ``UpstreamUnresolvable``, wenn der Auflöser nicht
+    antwortet (transient), ``EgressBlocked``, wenn er antwortet und die Antwort
+    verboten ist (Politik).
     """
     try:
         infos = socket.getaddrinfo(host, 443, proto=socket.IPPROTO_TCP)
     except OSError as exc:
-        raise PermissionError(f"DNS-Auflösung für {host} fehlgeschlagen: {exc}") from exc
+        log.warning("dns_resolution_failed", host=host, error=str(exc))
+        raise UpstreamUnresolvable(f"DNS-Auflösung für {host} fehlgeschlagen: {exc}") from exc
 
     ips = sorted({info[4][0] for info in infos})
     blocked = [ip for ip in ips if _ip_is_blocked(ip)]
     if blocked:
         log.warning("egress_ip_blocked", host=host, blocked=blocked, resolved=ips)
-        raise PermissionError(
+        raise EgressBlocked(
             f"Egress blockiert: {host} löst auf interne/nicht-routbare IP(s) auf {blocked}"
         )
     return ips
@@ -92,11 +122,20 @@ async def _egress_guard(request: httpx.Request) -> None:
        (SEC-005): blockt DNS-Rebinding/Metadata-IPs vor dem Verbindungsaufbau.
     """
     if request.url.scheme != "https" or request.url.host not in ALLOWED_HOSTS:
-        raise PermissionError(
+        raise EgressBlocked(
             f"Egress blockiert: {request.url.scheme}://{request.url.host} "
             f"nicht in Allow-List {sorted(ALLOWED_HOSTS)}"
         )
-    _resolve_and_validate(request.url.host)
+    # Die Auflösung läuft im Thread-Pool, nicht im Event-Loop. ``getaddrinfo``
+    # ist synchron: Ein hängender Auflöser blockiert den Loop, und was den Loop
+    # blockiert, kann die Deadline in ``_http_get`` nicht schneiden — der
+    # Timer feuert erst, wenn der Loop wieder drankommt. Damit wäre das
+    # Gesamtbudget für genau den Pfad wirkungslos, den ``_http_get`` seit der
+    # Trennung wiederholt (siehe dort). Im Executor bleibt der Loop frei, die
+    # Deadline greift, und ein toter Auflöser kostet Wartezeit in einem
+    # Worker-Thread statt im ganzen Server.
+    loop = asyncio.get_running_loop()
+    await loop.run_in_executor(None, _resolve_and_validate, request.url.host)
 
 
 def _new_client() -> httpx.AsyncClient:
@@ -200,8 +239,9 @@ async def _http_get(url: str, params: dict | None = None) -> httpx.Response:
 
     Wiederholt werden Netzwerkfehler, Timeouts, 5xx und 429. Ein 4xx ausser 429
     ist eine Aussage über die Anfrage und keine über den Moment — es wird sofort
-    durchgereicht, damit ``_handle_error`` es abbilden kann. ``PermissionError``
-    aus dem Egress-Guard ist eine Policy-Entscheidung und wird nie wiederholt.
+    durchgereicht, damit ``_handle_error`` es abbilden kann. ``EgressBlocked``
+    aus dem Egress-Guard ist eine Policy-Entscheidung und wird nie wiederholt;
+    ``UpstreamUnresolvable`` schon, denn es ist ein Ausfall wie jeder andere.
     """
     client = _get_client()
     deadline = time.monotonic() + RETRY_TOTAL_BUDGET
@@ -238,6 +278,20 @@ async def _http_get(url: str, params: dict | None = None) -> httpx.Response:
         except TimeoutError as exc:  # Budget aufgebraucht, nicht bloss dieser Versuch
             last_error = exc
             break
+        except UpstreamUnresolvable as exc:
+            # Ein Auflöser-Zucken ist kein Politik-Verstoss, sondern derselbe
+            # transiente Ausfall wie ein ``ConnectError`` — nur einen Schritt
+            # früher. Am 3.8.2026 scheiterten drei Tool-Aufrufe hintereinander
+            # genau hier, der vierte ging durch; als ``PermissionError`` ohne
+            # eigenen Typ beendete jeder davon den Aufruf sofort, obwohl diese
+            # Schleife für genau diesen Fall gebaut ist.
+            #
+            # Bewusst *in* dieser Schleife und damit unter demselben Budget,
+            # derselben Versuchszahl und derselben Backoff-Kurve wie alles
+            # andere: Ein zweiter Zähler daneben wäre eine zweite Obergrenze,
+            # die niemand zusammenrechnet. ``EgressBlocked`` fängt hier nichts
+            # — es fliegt durch, ungeachtet der gemeinsamen Basis.
+            last_error = exc
         except (httpx.HTTPStatusError, httpx.RequestError) as exc:
             last_error = exc
             status = getattr(getattr(exc, "response", None), "status_code", None)

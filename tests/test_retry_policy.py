@@ -1,11 +1,13 @@
 """Retry-Politik gegenüber BISTA (ARCH-014).
 
-Vier Fragen, die diese Datei beantwortet: Was wird wiederholt, wie schnell,
-wie lange, und hält der Deckel, den die Konstante behauptet.
+Fünf Fragen, die diese Datei beantwortet: Was wird wiederholt, wie schnell,
+wie lange, hält der Deckel, den die Konstante behauptet — und welche der
+beiden Lagen hinter ``PermissionError`` liegt eigentlich vor.
 """
 
 from __future__ import annotations
 
+import socket
 import time
 
 import httpx
@@ -41,6 +43,15 @@ def _resp(status: int, retry_after: str | None = None) -> httpx.Response:
 
 def _status_error(status: int, retry_after: str | None = None) -> httpx.HTTPStatusError:
     return httpx.HTTPStatusError("boom", request=None, response=_resp(status, retry_after))
+
+
+def _addrinfo(ip: str, port: int = 443) -> list:
+    """Eine ``getaddrinfo``-Antwort, die auf ``ip`` zeigt."""
+    return [(socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", (ip, port))]
+
+
+def _patch_resolver(monkeypatch, fn) -> None:
+    monkeypatch.setattr("zh_education_mcp.http_client.socket.getaddrinfo", fn)
 
 
 # --- Was wird wiederholt ----------------------------------------------------
@@ -106,6 +117,189 @@ async def test_an_egress_violation_is_never_retried(monkeypatch):
     with pytest.raises(PermissionError):
         await hc._http_get(URL)
     assert calls["n"] == 1
+
+
+# --- Politik oder Ausfall ---------------------------------------------------
+#
+# ``_resolve_and_validate`` scheitert auf zwei grundverschiedene Weisen. Bis
+# beide denselben ``PermissionError`` warfen, wurde ein Auflöser-Ausfall wie
+# ein Policy-Verstoss behandelt: nie wiederholt, und dem Aufrufer als
+# «Egress-Policy blockiert» gemeldet. Am 3.8.2026 scheiterten drei
+# Tool-Aufrufe hintereinander genau daran; der vierte ging durch.
+
+
+def test_the_two_lagen_are_distinct_types_on_the_old_base():
+    """Getrennte Typen, aber ``PermissionError`` bleibt die gemeinsame Basis.
+
+    Die Basis ist kein Schmuck: Jedes bestehende ``except PermissionError``
+    (und jeder Test, der darauf zeigt) sollte weiter greifen, statt still ins
+    Leere zu laufen und den Fehler als «unerwarteter interner Fehler»
+    durchzureichen.
+    """
+    assert issubclass(hc.EgressBlocked, PermissionError)
+    assert issubclass(hc.UpstreamUnresolvable, PermissionError)
+    # ... und trotzdem auseinanderhaltbar, in beide Richtungen.
+    assert not issubclass(hc.UpstreamUnresolvable, hc.EgressBlocked)
+    assert not issubclass(hc.EgressBlocked, hc.UpstreamUnresolvable)
+
+
+def test_a_resolver_outage_is_typed_as_unresolvable(monkeypatch):
+    """Der Auflöser antwortet nicht — das ist keine Aussage über die Politik."""
+
+    def failing(host, port, *a, **k):
+        raise socket.gaierror(socket.EAI_AGAIN, "Temporary failure in name resolution")
+
+    _patch_resolver(monkeypatch, failing)
+    with pytest.raises(hc.UpstreamUnresolvable):
+        hc._resolve_and_validate("www.bista.zh.ch")
+
+
+def test_an_internal_answer_is_typed_as_egress_blocked(monkeypatch):
+    """Der Auflöser antwortet, und die Antwort ist verboten (SEC-005)."""
+    _patch_resolver(monkeypatch, lambda *a, **k: _addrinfo("169.254.169.254"))
+    with pytest.raises(hc.EgressBlocked):
+        hc._resolve_and_validate("www.bista.zh.ch")
+
+
+@respx.mock
+async def test_a_dns_outage_is_retried_and_then_succeeds(monkeypatch):
+    """Ein Zucken des Auflösers darf den Tool-Aufruf nicht beenden.
+
+    Derselbe transiente Ausfall wie ein ``ConnectError``, nur einen Schritt
+    früher — und genau der Fall, für den die Schleife gebaut ist.
+    """
+    calls = {"n": 0}
+
+    def flaky(host, port, *a, **k):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise socket.gaierror(socket.EAI_AGAIN, "Temporary failure in name resolution")
+        return _addrinfo("8.8.8.8", port)
+
+    _patch_resolver(monkeypatch, flaky)
+    route = respx.get(URL).mock(return_value=httpx.Response(200, text="ok"))
+    resp = await hc._http_get(URL)
+    assert resp.text == "ok"
+    assert calls["n"] == 2, "der zweite Versuch hat gar nicht erst aufgelöst"
+    assert route.call_count == 1
+
+
+@respx.mock
+async def test_a_dead_resolver_stays_under_the_shared_attempt_cap(monkeypatch):
+    """Wiederholt wird unter demselben Budget wie alles andere, nicht daneben.
+
+    Ein eigener Zähler für DNS wäre eine zweite Obergrenze, die niemand
+    zusammenrechnet: Vier Auflösungsversuche *plus* vier Requests ist nicht
+    das, was ``RETRY_ATTEMPTS`` verspricht.
+    """
+    calls = {"n": 0}
+
+    def always_failing(host, port, *a, **k):
+        calls["n"] += 1
+        raise socket.gaierror(socket.EAI_AGAIN, "Temporary failure in name resolution")
+
+    _patch_resolver(monkeypatch, always_failing)
+    route = respx.get(URL).mock(return_value=httpx.Response(200, text="nie erreicht"))
+    with pytest.raises(hc.UpstreamUnresolvable):
+        await hc._http_get(URL)
+    assert calls["n"] == RETRY_ATTEMPTS
+    assert route.call_count == 0, "eine unauflösbare Adresse darf nie kontaktiert werden"
+
+
+@respx.mock
+async def test_a_rebinding_answer_is_still_never_retried(monkeypatch):
+    """Die Politik-Seite bleibt, was sie war — trotz gemeinsamer Basis.
+
+    Der Nachbartest oben patcht den ganzen Guard; dieser geht durch den echten
+    Pfad (Host löst auf eine Metadata-IP auf) und hält fest, dass die neue
+    Klasse nicht versehentlich in den wiederholten Zweig gerutscht ist.
+    """
+    calls = {"n": 0}
+
+    def internal(host, port, *a, **k):
+        calls["n"] += 1
+        return _addrinfo("169.254.169.254", port)
+
+    _patch_resolver(monkeypatch, internal)
+    route = respx.get(URL).mock(return_value=httpx.Response(200))
+    with pytest.raises(hc.EgressBlocked):
+        await hc._http_get(URL)
+    assert calls["n"] == 1
+    assert route.call_count == 0
+
+
+@respx.mock
+async def test_a_hanging_resolver_is_cut_by_the_wall_clock_deadline(monkeypatch):
+    """«Unter demselben Budget» muss auch für den Auflöser gelten.
+
+    ``getaddrinfo`` ist synchron. Liefe es im Event-Loop, könnte die Deadline
+    es nicht schneiden — der Timer feuert erst, wenn der Loop wieder drankommt,
+    und aus vier Versuchen würden vier Blockaden über das Budget hinaus.
+    Deshalb löst der Guard im Thread-Pool auf; dieser Test misst echte Zeit,
+    denn eine Uhr, die nur beim Schlafen vorrückt, kann eine Blockade nicht
+    bemerken.
+    """
+    monkeypatch.setattr(hc, "RETRY_TOTAL_BUDGET", 0.05)
+
+    def hanging(host, port, *a, **k):
+        time.sleep(0.6)  # echt blockierend, wie ein toter Resolver
+        return _addrinfo("8.8.8.8", port)
+
+    _patch_resolver(monkeypatch, hanging)
+    respx.get(URL).mock(return_value=httpx.Response(200, text="zu spät"))
+    started = time.monotonic()
+    with pytest.raises(TimeoutError):
+        await hc._http_get(URL)
+    elapsed = time.monotonic() - started
+    assert elapsed < 0.4, f"der Auflöser hat den Event-Loop blockiert: {elapsed:.2f}s"
+
+
+# --- Wie liest der Aufrufer das ---------------------------------------------
+
+
+def test_a_resolver_outage_does_not_read_as_an_egress_violation():
+    """Eine falsche Diagnose schickt Nutzende dorthin, wo nichts zu finden ist.
+
+    «Durch Egress-Policy blockiert» heisst: Sieh in der Konfiguration nach. Bei
+    einem DNS-Aussetzer ist die Konfiguration in Ordnung und die richtige
+    Handlung ist, es noch einmal zu versuchen.
+    """
+    from zh_education_mcp.data import _handle_error
+
+    msg = _handle_error(
+        hc.UpstreamUnresolvable(
+            "DNS-Auflösung für www.bista.zh.ch fehlgeschlagen: "
+            "[Errno -3] Temporary failure in name resolution"
+        )
+    )
+    assert "Egress" not in msg
+    assert "DNS" in msg
+    assert "erneut versuchen" in msg
+    # OBS-002: der originale Fehler geht ins Log, nicht an den Client.
+    assert "Errno" not in msg and "www.bista.zh.ch" not in msg
+    assert msg.startswith("Fehler:")
+
+
+def test_an_egress_violation_still_names_the_policy():
+    """Die Politik-Meldung bleibt unverändert — sie war für ihren Fall richtig."""
+    from zh_education_mcp.data import _handle_error
+
+    msg = _handle_error(
+        hc.EgressBlocked(
+            "Egress blockiert: www.bista.zh.ch löst auf interne/nicht-routbare "
+            "IP(s) auf ['169.254.169.254']"
+        )
+    )
+    assert "Egress-Policy" in msg
+    assert "169.254" not in msg
+    assert msg.startswith("Fehler:")
+
+
+def test_a_bare_permissionerror_keeps_the_old_message():
+    """Was vor der Trennung ``PermissionError`` warf, liest sich weiter gleich."""
+    from zh_education_mcp.data import _handle_error
+
+    assert "Egress-Policy" in _handle_error(PermissionError("Egress blockiert"))
 
 
 # --- Wie schnell ------------------------------------------------------------

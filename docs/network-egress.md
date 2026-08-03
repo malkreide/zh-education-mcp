@@ -43,6 +43,25 @@ link-local inkl. Cloud-Metadata `169.254.169.254`, multicast, reserved,
 unspecified). Löst der erlaubte Host auf eine interne IP auf (DNS-Rebinding),
 wird vor dem Verbindungsaufbau hart abgebrochen.
 
+### Zwei Fehlausgänge, zwei Typen
+
+`_resolve_and_validate()` kann auf zwei grundverschiedene Weisen scheitern, und
+die Unterscheidung entscheidet über das Verhalten:
+
+| Lage | Typ | Retry | Meldung an den Aufrufer |
+| --- | --- | --- | --- |
+| Auflösung ergibt eine interne/nicht-routbare IP, Host nicht in der Allow-List, kein HTTPS | `EgressBlocked` | nie — die Entscheidung fällt beim nächsten Versuch gleich aus | «durch Egress-Policy blockiert» |
+| `getaddrinfo` scheitert («Temporary failure in name resolution») | `UpstreamUnresolvable` | ja, wie jeder transiente Ausfall | «liess sich gerade nicht auflösen (DNS)» |
+
+Beide erben von `PermissionError`, damit bestehende `except`-Klauseln weiter
+greifen. Die Auflösung läuft im Thread-Pool statt im Event-Loop: `getaddrinfo`
+ist synchron, und was den Loop blockiert, kann die Wanduhr-Deadline der
+Retry-Schleife (ARCH-014) nicht schneiden.
+
+Für den Betrieb heisst das: Ein wiederholter `UpstreamUnresolvable` ist ein
+Hinweis auf den **Resolver**, nicht auf die Egress-Regeln — siehe den Hinweis
+oben, dass DNS (Port 53) erlaubt bleiben muss.
+
 ## Bekanntes Restrisiko
 
 - **Socket-Level-Pinning:** Die Validierung prüft die aufgelösten IPs, verbindet
