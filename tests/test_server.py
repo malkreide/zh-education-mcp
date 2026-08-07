@@ -5,34 +5,19 @@ from __future__ import annotations
 import httpx
 import pytest
 import respx
+from fixture_data import csv_fixture, latest_year
 
-# Sample CSV-Daten (anonymisiert)
-SAMPLE_SEK1_CSV = """Stand,Kanton,Jahr,Schulgemeinde,Anforderungstyp,Anzahl
-2026-03-24,zh,2020,Zürich-Letzi,Sek A,500
-2026-03-24,zh,2020,Zürich-Letzi,Sek B,300
-2026-03-24,zh,2021,Zürich-Letzi,Sek A,510
-2026-03-24,zh,2021,Zürich-Letzi,Sek B,295
-2026-03-24,zh,2022,Zürich-Letzi,Sek A,550
-2026-03-24,zh,2022,Zürich-Letzi,Sek B,310
-2026-03-24,zh,2023,Zürich-Letzi,Sek A,580
-2026-03-24,zh,2023,Zürich-Letzi,Sek B,320
-2026-03-24,zh,2024,Zürich-Letzi,Sek A,600
-2026-03-24,zh,2024,Zürich-Letzi,Sek B,330
-2026-03-24,zh,2024,Adliswil,Sek A,233
-2026-03-24,zh,2024,Adliswil,Sek B,132
-"""
-
-SAMPLE_UEBERSICHT_CSV = """Stand,Kanton,Jahr,Stufe,Schultyp,Geschlecht,Staatsangehoerigkeit,Traegerschaft,Finanzierung,Anzahl
-2026-03-24,zh,2024,Primarstufe 1-2,Regelschule,F,Schweiz,oef,oef,10746
-2026-03-24,zh,2024,Primarstufe 3-6,Regelschule,F,Schweiz,oef,oef,21000
-2026-03-24,zh,2024,Sekundarstufe I,Regelschule,F,Schweiz,oef,oef,15000
-"""
-
-SAMPLE_NAT_CSV = """Stand,Kanton,Jahr,Schulgemeinde,Staatsangehoerigkeit,Staatsangehoerigkeit_ISO2_Code,Anzahl
-2026-03-24,zh,2024,Zürich-Letzi,Schweiz,CH,5000
-2026-03-24,zh,2024,Zürich-Letzi,Deutschland,DE,200
-2026-03-24,zh,2024,Zürich-Letzi,Italien,IT,150
-"""
+# Aufgezeichnete Fixtures statt erfundener Werte. Herkunft, Datum und
+# Auswahlregel je Datei stehen in tests/fixtures/PROVENANCE.md; neu aufzeichnen
+# mit `python scripts/record_fixtures.py`.
+#
+# Die Kopfzeilen sind die der Quelle vom Aufzeichnungstag — uneinheitlich
+# zwischen den Endpunkten und teils innerhalb einer Zeile. Genau daran ist der
+# Server am 3.8.2026 gescheitert; eine vereinheitlichte Fixture haette das
+# wieder unsichtbar gemacht.
+SAMPLE_SEK1_CSV = csv_fixture("sek1")
+SAMPLE_UEBERSICHT_CSV = csv_fixture("uebersicht")
+SAMPLE_NAT_CSV = csv_fixture("nat_regional")
 
 BISTA_BASE = "https://www.bista.zh.ch/basicapi/ogd"
 
@@ -73,7 +58,7 @@ async def test_anker_query_letzi_trend():
         result = await zh_edu_schulkreis_trend(params)
 
     assert "Letzi" in result
-    assert "2024" in result
+    assert latest_year("sek1") in result
     assert "Sek A" in result or "930" in result
     assert "Trend" in result or "trend" in result.lower()
 
@@ -91,7 +76,7 @@ async def test_overview_aktuellstes_jahr():
         params = UebersichtInput()
         result = await zh_edu_overview(params)
 
-    assert "2024" in result
+    assert latest_year("uebersicht") in result
     assert "Primarstufe" in result
 
 
@@ -321,22 +306,11 @@ async def test_json_tool_output_is_enveloped():
 
 
 # ── Welle 4b: Tests für bisher ungetestete Tools (OPS-001) ──────────────────────
-SAMPLE_MATURITAET_CSV = """Stand,Kanton,Jahr,Gemeinde,Bezirk,Total_Abschluss_gymnasial,Total_19_Jahre_alt,Maturitaetsquote_gymnasial
-2026-03-24,zh,2024,Zürich,Zürich,1200,8000,0.15
-2026-03-24,zh,2024,Winterthur,Winterthur,300,3000,0.10
-"""
+SAMPLE_MATURITAET_CSV = csv_fixture("maturitaet")
 
-SAMPLE_WOHNORT_CSV = """Stand,Kanton,Jahr,Gebiet_Bezeichnung,Stufe,Anzahl
-2026-03-24,zh,2022,Bezirk Winterthur,Primarstufe,5000
-2026-03-24,zh,2023,Bezirk Winterthur,Primarstufe,5100
-2026-03-24,zh,2024,Bezirk Winterthur,Primarstufe,5300
-"""
+SAMPLE_WOHNORT_CSV = csv_fixture("wohnort")
 
-SAMPLE_MITTELSCHULEN_CSV = """Stand,Kanton,Jahr,Mittelschultyp,Bildungsart,Geschlecht,Anzahl
-2026-03-24,zh,2024,Gymnasium,Langgymnasium,F,4000
-2026-03-24,zh,2024,FMS,Vollzeit,F,800
-2026-03-24,zh,2024,HMS,Vollzeit,M,600
-"""
+SAMPLE_MITTELSCHULEN_CSV = csv_fixture("mittelschulen")
 
 
 @pytest.mark.asyncio
@@ -351,7 +325,7 @@ async def test_maturitaetsquote_filter_bezirk():
         result = await zh_edu_maturitaetsquote(MaturitaetsquoteInput(gemeinde="Zürich"))
 
     assert "Zürich" in result
-    assert "15.0%" in result
+    assert "22.9%" in result
 
 
 @pytest.mark.asyncio
@@ -378,7 +352,12 @@ async def test_maturitaetsquote_zeigt_die_19_jaehrigen():
 
     zeile = next(z for z in result.splitlines() if z.startswith("| Zürich "))
     spalten = [s.strip() for s in zeile.strip("|").split("|")]
-    assert spalten == ["Zürich", "Zürich", "1200", "8000", "15.0%"], zeile
+    # Werte aus der aufgezeichneten Fixture (Zürich, jüngster Jahrgang darin).
+    # Die Quote steht hier als 22.9 % und nicht als 2290.0 %: Die Quelle
+    # publiziert die Spalte bereits in Prozent. Die alte Fixture schrieb eine
+    # Bruchzahl hinein, die es in der Quelle nicht gibt, und deckte damit ein
+    # `* 100` im Produktivcode zu.
+    assert spalten == ["Zürich", "Bezirk Zürich", "2913", "12723", "22.9%"], zeile
 
 
 @pytest.mark.asyncio
@@ -402,7 +381,7 @@ async def test_maturitaetsquote_liest_die_gesenkte_kopfzeile():
         )
         result = await zh_edu_maturitaetsquote(MaturitaetsquoteInput(gemeinde="Zürich"))
 
-    assert "| 8000 |" in result
+    assert "| 12723 |" in result
 
 
 @pytest.mark.asyncio
@@ -419,7 +398,10 @@ async def test_maturitaetsquote_json_envelope():
         result = await zh_edu_maturitaetsquote(MaturitaetsquoteInput(response_format="json"))
 
     payload = json.loads(result)
-    assert payload["count"] == 2
+    # 24 Zeilen: Zürich und Winterthur über alle Jahrgänge der Quelle. Die Zahl
+    # kommt aus der Auswahlregel in scripts/record_fixtures.py, nicht aus einer
+    # Annahme über die Quelle.
+    assert payload["count"] == 24
     assert payload["source"]
 
 
@@ -470,9 +452,12 @@ async def test_mittelschulen_groups_by_typ():
         )
         result = await zh_edu_mittelschulen(MittelschulenInput())
 
+    # Die Quelle schreibt die Typen aus. «FMS»/«HMS» waren Abkürzungen der
+    # erfundenen Fixture — in den echten Daten stehen «Fachmittelschule» und
+    # «Handelsmittelschule».
     assert "Gymnasium" in result
-    assert "FMS" in result
-    assert "HMS" in result
+    assert "Fachmittelschule" in result
+    assert "Handelsmittelschule" in result
 
 
 @pytest.mark.asyncio
@@ -491,8 +476,11 @@ async def test_mittelschulen_filter_typ_json():
         )
 
     payload = json.loads(result)
-    assert payload["count"] == 1
-    assert payload["jahr"] == 2024
+    # Zahl und Jahrgang aus der aufgezeichneten Fixture abgeleitet, nicht
+    # hingeschrieben — sonst prüft der Test ab dem nächsten Jahrgang etwas
+    # anderes, als sein Name sagt.
+    assert payload["count"] == 143
+    assert payload["jahr"] == int(latest_year("mittelschulen"))
 
 
 # ── Welle 4b: Resources als zweites MCP-Primitiv (ARCH-008) ─────────────────────
@@ -552,7 +540,7 @@ async def test_ctx_progress_and_logging_on_fetch():
         )
         result = await zh_edu_overview(UebersichtInput(), ctx=ctx)
 
-    assert "2024" in result
+    assert latest_year("uebersicht") in result
     assert ctx.info.await_count >= 1
     assert ctx.report_progress.await_count >= 1
 
