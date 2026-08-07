@@ -263,6 +263,13 @@ PYTHONPATH=src pytest tests/ -m "not live"
 pytest tests/ -m "live"
 ```
 
+The live suite also runs **on a schedule**: every Monday 05:23 UTC, plus on
+demand ([`live-tests.yml`](.github/workflows/live-tests.yml)). A red run opens
+an `upstream`-labelled issue; a green one closes it. `-m "not live"` is not a
+place where tests run, and these three are the only tests here that can
+contradict a wrong assumption about BISTA — see
+[CONTRIBUTING](CONTRIBUTING.md#the-live-suite-when-it-runs-and-who-sees-a-red-result).
+
 ---
 
 ## MCP Protocol Version
