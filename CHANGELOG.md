@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Geaendert — die aufgezeichneten Fixtures stehen jetzt im `schema_fields.toml`
+
+Als das Manifest geschrieben wurde, gab es hier keine aufgezeichneten
+Kopfzeilen — nur handgeschriebene Zeilen in den Tests. Es stand deshalb
+ausdruecklich drin: «Sobald eine echte CSV-Fixture dazukommt, gehoert sie
+hierher.» `scripts/record_fixtures.py` hat sie geliefert; hier ist die Zeile.
+
+Sechs `fixture = …`-Eintraege, je einer pro Datensatz. Damit haelt
+`schema_field_probe` bei jedem Lauf auch die Aufzeichnung gegen die Quelle und
+meldet `FIXTURE_PINS_OLD_HEADER`, sobald eine Fixture Namen pinnt, die BISTA
+nicht mehr sendet.
+
+Das ist genau der Satz, der am 3.8.2026 gefehlt hat. Die Unit-Tests waren gruen,
+weil sie die Annahme des Codes gegen eine Aufzeichnung derselben Annahme hielten
+— und niemand konnte das sehen, weil nichts die Aufzeichnung mit der Quelle
+verglich.
+
+Die Fixture ist dabei **nicht** der Massstab: Verglichen wird weiterhin der Code
+gegen die Quelle. Die Fixture wird nur gelesen, um zu erklaeren, warum eine
+gruene Suite nichts bedeutet haette.
+
+Am Tag der Aufzeichnung meldet die Probe erwartungsgemaess nichts — eine heute
+aufgezeichnete Kopfzeile kann nicht die von gestern pinnen. Geprueft wurde
+trotzdem, ob die Deklaration wirkt und nicht nur dasteht: Mit einer versuchsweise
+auf `Schulgemeinde` zurueckgedrehten Kopfzeile in `sek1.csv` meldet die Probe
+
+    FIXTURE_PINS_OLD_HEADER: tests/fixtures/sek1.csv pins 1 field name(s)
+    the source no longer sends (Schulgemeinde)
+
+Eine Deklaration, die nichts tut, saehe von aussen aus wie eine aktuelle Fixture.
+
 ### Behoben — die Maturitätsquote war um den Faktor 100 zu hoch
 
 `zh_edu_maturitaetsquote` rechnete `float(quote) * 100`. Die Quelle publiziert
