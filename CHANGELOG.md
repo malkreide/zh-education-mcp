@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Die gelesenen Feldnamen werden jetzt bestätigt, nicht nur normalisiert.**
+  `_normalise_keys` nimmt seit dem 3. August 2026 die **Schreibweise** aus dem
+  Spiel — das war die Lehre aus dem BISTA-Wechsel von `Schulgemeinde` auf
+  `schulgemeinde`.
+
+  Die **Identität** des Namens nimmt es nicht aus dem Spiel. Wechselt die
+  Quelle einen Feldnamen — `anzahl` zu `wert`, `schulgemeinde` zu `gemeinde` —,
+  hilft keine Normalisierung: Der Server fände wieder nichts und meldete
+  «nicht gefunden». Derselbe Ausfall, andere Ursache.
+
+  `_READ_FIELDS` erklärt jetzt je Endpunkt, welche Spalten der Code
+  **tatsächlich anfasst** — aus dem Quelltext erhoben, nicht geraten —, und
+  `_confirm_shape` bestätigt sie auf dem ersten Eintrag. Bei Abweichung fliegt
+  `UpstreamSchemaError` mit den tatsächlich vorhandenen Spalten in der Meldung.
+
+  **Ausdrücklich keine Schema-Validierung** (`FID-006` verlangt sie nicht): Eine
+  neue Spalte upstream ist harmlos und lässt die Prüfung grün. Eine leere Datei
+  ebenso — sie sagt nichts über die Form, und `FID-003` behandelt sie an der
+  richtigen Stelle.
+
+- **Live-Tests, die die Erklärung gegen die echte Quelle halten.**
+  `tests/test_read_fields.py` prüft für alle sechs Endpunkte, dass die
+  deklarierten Felder in der echten Antwort stehen — und dass die aufgezeichnete
+  Fixture noch dieselbe Kopfzeile hat wie die Quelle. Ein Fixture allein kann
+  diese Klasse nicht widerlegen: Es trägt die angenommene Kopfzeile und
+  bestätigt sie dauerhaft.
+
+  **Noch ohne grünen Lauf.** Am 2026-08-07 antwortete
+  `https://www.bista.zh.ch/basicapi/ogd/…` auf allen sechs Endpunkten mit
+  **HTTP 502** (HTML-Fehlerseite des BISTA-Webservers; die Startseite lieferte
+  200, es lag also nicht am Netz und nicht am User-Agent). Nach
+  [`FID-006`](https://github.com/malkreide/mcp-audit-skill/blob/main/checks/FID-006.md)
+  §2.6 ist der Ausgang damit `todo`, **nicht** `pass`: Der Test existiert, aber
+  er hat noch nichts belegt. Der nächste Live-Lauf entscheidet.
+
 ### Geaendert — die aufgezeichneten Fixtures stehen jetzt im `schema_fields.toml`
 
 Als das Manifest geschrieben wurde, gab es hier keine aufgezeichneten
