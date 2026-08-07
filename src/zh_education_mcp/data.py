@@ -8,7 +8,16 @@ import time
 
 import httpx
 
-from .constants import BISTA_API, CACHE_TTL
+from .constants import (
+    BISTA_API,
+    CACHE_TTL,
+    EP_MATURITAET,
+    EP_MITTELSCHULEN,
+    EP_NAT_REGIONAL,
+    EP_SEK1,
+    EP_UEBERSICHT,
+    EP_WOHNORT,
+)
 from .http_client import UpstreamUnresolvable, _http_get
 from .logging_setup import log
 
@@ -68,6 +77,82 @@ def _handle_error(e: Exception) -> str:
     return "Fehler: Unerwarteter interner Fehler. Bitte später erneut versuchen."
 
 
+class UpstreamSchemaError(RuntimeError):
+    """Die Antwort kam an, sieht aber anders aus, als der Code sie liest.
+
+    Von einem Netz- oder Egress-Fehler getrennt, weil die Behebung eine andere
+    ist: Dort ist BISTA nicht erreichbar, hier hat BISTA geantwortet und seine
+    Kopfzeile geändert.
+    """
+
+
+# Was der Code je Endpunkt tatsächlich anfasst — nach `_normalise_keys`, also
+# durchgehend kleingeschrieben.
+#
+# Bewusst NICHT die vollständige Kopfzeile: `FID-006` verlangt ausdrücklich
+# keine Schema-Validierung. Ein Wächter, der bei einer harmlosen neuen Spalte
+# rot wird, ist nach dem zweiten Fehlalarm abgeschaltet — und dann bewacht er
+# gar nichts mehr. Geprüft wird die Hülle bis zur gelesenen Ebene und die
+# Felder, die danach ausgelesen werden.
+#
+# Die Listen sind aus dem Quelltext erhoben (Feldliterale je Werkzeug plus die
+# Filter, die `_filter_rows` als Schlüsselwort bekommt) und gegen die
+# aufgezeichneten Fixtures geprüft; `test_every_declared_field_exists_in_its_fixture`
+# hält das fest.
+_READ_FIELDS: dict[str, frozenset[str]] = {
+    EP_SEK1: frozenset({"jahr", "schulgemeinde", "anforderungstyp", "anzahl"}),
+    EP_UEBERSICHT: frozenset({"jahr", "stufe", "anzahl"}),
+    EP_NAT_REGIONAL: frozenset(
+        {
+            "jahr",
+            "schulgemeinde",
+            "staatsangehoerigkeit",
+            "staatsangehoerigkeit_iso2_code",
+            "anzahl",
+        }
+    ),
+    EP_MATURITAET: frozenset(
+        {
+            "bezirk",
+            "gemeinde",
+            "total_abschluss_gymnasial",
+            "total_19_jahre_alt",
+            "maturitaetsquote_gymnasial",
+        }
+    ),
+    EP_WOHNORT: frozenset({"jahr", "gebiet_bezeichnung", "stufe", "anzahl"}),
+    EP_MITTELSCHULEN: frozenset({"jahr", "mittelschultyp", "anzahl"}),
+}
+
+
+def _confirm_shape(endpoint: str, rows: list[dict]) -> None:
+    """Bestätigt die gelesenen Feldnamen auf dem ersten Eintrag (FID-006).
+
+    `_normalise_keys` nimmt die **Schreibweise** aus dem Spiel; diese Prüfung
+    nimmt die **Identität** dazu. Beides braucht es: Am 3. August 2026 wechselte
+    BISTA die Schreibweise, und der Server fand nichts mehr. Wechselt die Quelle
+    stattdessen einen Feldnamen — `anzahl` zu `wert`, `schulgemeinde` zu
+    `gemeinde` —, hilft keine Normalisierung, und der Ausfall sähe genauso aus:
+    ein leeres Ergebnis mit der Meldung «nicht gefunden».
+
+    Eine leere Datei ist **kein** Befund. Sie kann eine Aussage der Quelle sein,
+    und `FID-003` behandelt sie an der richtigen Stelle; hier ginge es um die
+    Form, und über die sagt eine Datei ohne Zeilen nichts.
+    """
+    expected = _READ_FIELDS.get(endpoint)
+    if expected is None or not rows:
+        return
+    present = set(rows[0])
+    missing = sorted(expected - present)
+    if missing:
+        raise UpstreamSchemaError(
+            f"BISTA `{endpoint}`: Der Datensatz führt {missing} nicht mehr. "
+            f"Vorhandene Spalten: {sorted(present)}. Das ist keine Leermenge — "
+            "die Quelle hat ihre Kopfzeile geändert, und die betroffenen "
+            "Werkzeuge würden sonst «nicht gefunden» melden."
+        )
+
+
 def _normalise_keys(row: dict) -> dict:
     """Senkt die Spaltennamen einer CSV-Zeile auf Kleinschreibung.
 
@@ -111,6 +196,7 @@ async def _fetch_csv(endpoint: str, ctx: object | None = None) -> list[dict]:
     resp.raise_for_status()
     reader = csv.DictReader(io.StringIO(resp.text))
     rows = [_normalise_keys(row) for row in reader]
+    _confirm_shape(endpoint, rows)
     _cache_set(endpoint, rows)
     ms = round((time.perf_counter() - start) * 1000)
     log.info("fetch_ok", endpoint=endpoint, rows=len(rows), ms=ms)
