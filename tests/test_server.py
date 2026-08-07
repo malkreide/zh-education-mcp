@@ -355,6 +355,57 @@ async def test_maturitaetsquote_filter_bezirk():
 
 
 @pytest.mark.asyncio
+async def test_maturitaetsquote_zeigt_die_19_jaehrigen():
+    """Die Spalte «19-Jährige» trägt eine Zahl, keinen Gedankenstrich.
+
+    Der Regressionstest zu einem Befund, den kein Test dieser Datei sehen
+    konnte: `_normalise_keys` senkt seit dem Fix vom 3.8.2026 jede Kopfzeile
+    auf Kleinschreibung, diese eine Aufrufstelle las aber weiter
+    `Total_19_Jahre_alt`. `.get()` mit Default wirft nicht und loggt nicht —
+    die Spalte stand in jeder Zeile jeder Antwort auf «—», und die beiden
+    bestehenden Tests prüfen genau die zwei Spalten, die funktionierten.
+
+    Gefunden hat es `schema_field_probe` aus mcp-continuous-auditor gegen die
+    Live-Quelle. Diese Zusicherung ist, was den Befund im Repo hält.
+    """
+    from zh_education_mcp.server import MaturitaetsquoteInput, zh_edu_maturitaetsquote
+
+    with respx.mock:
+        respx.get(f"{BISTA_BASE}/data_maturitaetsquote_gemeinden_und_kanton").mock(
+            return_value=httpx.Response(200, text=SAMPLE_MATURITAET_CSV)
+        )
+        result = await zh_edu_maturitaetsquote(MaturitaetsquoteInput(gemeinde="Zürich"))
+
+    zeile = next(z for z in result.splitlines() if z.startswith("| Zürich "))
+    spalten = [s.strip() for s in zeile.strip("|").split("|")]
+    assert spalten == ["Zürich", "Zürich", "1200", "8000", "15.0%"], zeile
+
+
+@pytest.mark.asyncio
+async def test_maturitaetsquote_liest_die_gesenkte_kopfzeile():
+    """Auch wenn BISTA die Kopfzeile kleinschreibt, bleibt die Tabelle voll.
+
+    Die Fixture oben trägt die Schreibweise, die BISTA am 7.8.2026 lieferte.
+    Sie kann sich ändern — das ist der ganze Grund für `_normalise_keys` — und
+    ein Test, der nur die eine Schreibweise kennt, hält den Fix nicht fest.
+    """
+    from zh_education_mcp.server import MaturitaetsquoteInput, zh_edu_maturitaetsquote
+
+    gesenkt = (
+        SAMPLE_MATURITAET_CSV.split("\n")[0].lower()
+        + "\n"
+        + "\n".join(SAMPLE_MATURITAET_CSV.split("\n")[1:])
+    )
+    with respx.mock:
+        respx.get(f"{BISTA_BASE}/data_maturitaetsquote_gemeinden_und_kanton").mock(
+            return_value=httpx.Response(200, text=gesenkt)
+        )
+        result = await zh_edu_maturitaetsquote(MaturitaetsquoteInput(gemeinde="Zürich"))
+
+    assert "| 8000 |" in result
+
+
+@pytest.mark.asyncio
 async def test_maturitaetsquote_json_envelope():
     """Maturitätsquote im JSON-Format liefert den Envelope."""
     import json

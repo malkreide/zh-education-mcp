@@ -605,7 +605,7 @@ async def zh_edu_maturitaetsquote(params: MaturitaetsquoteInput, ctx: Context | 
             gem = r.get("gemeinde", "—")
             bez = r.get("bezirk", "—")
             abschl = r.get("total_abschluss_gymnasial", "—")
-            pop = r.get("Total_19_Jahre_alt", "—")
+            pop = r.get("total_19_jahre_alt", "—")
             quote = r.get("maturitaetsquote_gymnasial", "—")
             try:
                 quote_str = f"{float(quote) * 100:.1f}%" if quote != "—" else "—"

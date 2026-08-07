@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Behoben — «19-Jährige» stand seit dem Kopfzeilen-Fix in jeder Zeile auf «—»
+
+`_normalise_keys` senkt seit dem 3.8.2026 jede BISTA-Kopfzeile auf
+Kleinschreibung. `zh_edu_maturitaetsquote` las an einer Stelle weiter
+`r.get("Total_19_Jahre_alt")` — gegen eine Zeile, deren Schlüssel längst
+`total_19_jahre_alt` heissen.
+
+`.get()` mit Default wirft nicht und loggt nicht. Die Spalte «19-Jährige» der
+Maturitätsquoten-Tabelle trug seitdem in **jeder Zeile jeder Antwort** einen
+Gedankenstrich, und die Quote daneben stimmte weiter — die Tabelle sah richtig
+aus und war es an einer von fünf Spalten nicht.
+
+Dass es niemandem auffiel, ist kein Zufall: Die beiden bestehenden Tests prüfen
+`"Zürich" in result` und `"15.0%" in result`, also genau die zwei Spalten, die
+funktionierten. Ein Test, der nur die grüne Hälfte einer Tabelle behauptet,
+deckt die andere nicht ab.
+
+Gefunden hat es `schema_field_probe` aus `mcp-continuous-auditor` gegen die
+Live-Quelle — der Vergleich der Feldnamen, die dieser Code liest, mit denen, die
+`www.bista.zh.ch` gerade liefert. Genau der Lauf, für den das mitgelieferte
+`schema_fields.toml` da ist. Nach dem Fix: `SCHEMA_OK`, 6 von 6 Datensätzen,
+Exit 0.
+
+Zwei Regressionstests halten es fest — einer prüft die **ganze** Tabellenzeile
+Spalte für Spalte statt einzelner Teilstrings, der andere fährt dieselbe Antwort
+mit kleingeschriebener Kopfzeile, damit der Fix nicht an einer Schreibweise
+hängt, die BISTA morgen wieder ändern kann.
+
 ### Hinzugefuegt
 
 - **Release-Gate vor dem PyPI-Upload** (`scripts/check_release_artifacts.py`,
