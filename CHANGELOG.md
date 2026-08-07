@@ -70,6 +70,59 @@ vereinheitlichen würde genau die Eigenschaft wegputzen, an der der Server am
 Der Rahmen dazu steht im Skill [`mcp-data-fidelity`](https://github.com/malkreide/mcp-data-fidelity-skill)
 unter Regel 5 und im Katalog-Check `OPS-009`.
 
+### Hinzugefuegt — die Live-Suite läuft geplant, statt nur markiert zu sein
+
+`ci.yml` fährt `pytest tests/ -m "not live"`. Das ist richtig — ein fremder 503
+darf keinen fremden Pull Request rot machen — und es liess die drei Live-Tests
+seit ihrer Entstehung an keiner Stelle laufen. **`-m "not live"` ist kein Ort, an
+dem Tests laufen; es ist die Abwesenheit eines solchen.**
+
+Ausgerechnet diese drei sind die einzigen im Repo, die einer falschen
+Grundannahme über BISTA widersprechen können: Jeder andere Test prüft gegen eine
+Fixture, und die Fixture ist aus derselben Annahme geschrieben wie der Code. Zwei
+Belege in fünf Tagen, beide von aussen gefunden statt von der Suite:
+
+* **3.8.2026** — `r["Schulgemeinde"]` gegen `schulgemeinde`. Vier von sechs
+  Datensätzen, acht Tools, alle Unit-Tests grün.
+* **7.8.2026** — `r.get("Total_19_Jahre_alt")` gegen eine Zeile, deren Schlüssel
+  der Fix vom 3.8. kleingeschrieben hatte. Die Spalte «19-Jährige» stand seitdem
+  in jeder Antwort auf «—».
+
+`.github/workflows/live-tests.yml`: wöchentlich montags 05:23 UTC auf einer
+ungeraden Minute, dazu `workflow_dispatch`, damit die Suite nach einem Hinweis
+sofort laufen kann statt bis Montag zu warten. Der PR-Lauf bleibt unverändert bei
+`-m "not live"` — dies ist ein *zusätzlicher* Lauf, kein Umbau.
+
+**Drei Antworten, nicht zwei.** `if: failure()` allein kann nicht zwischen «ein
+Test ist rot» und «der Job kam gar nicht bis zu den Tests» unterscheiden; ein
+gescheitertes `pip install` sähe aus wie ein gebrochener Vertrag mit der Quelle.
+Ausgewertet wird deshalb der Exit-Code von pytest:
+
+| Exit | Bedeutung | Wirkung aufs Issue |
+|---|---|---|
+| 0 | alle grün | offenes Issue wird geschlossen |
+| 1 | Tests gefallen | Issue öffnen oder kommentieren |
+| 5 | **null Tests eingesammelt** | nichts — und der Job wird rot |
+| 2, 3, 4 | pytest kam nicht durch | nichts — und der Job wird rot |
+
+Die 5 ist die wichtigste Zeile: Benennt jemand die Marke um oder verschiebt die
+Tests, sammelt `-m live` null Tests ein und pytest meldet Erfolg. Ein Workflow,
+der das grün bucht, hat sich selbst stillgelegt und sagt es niemandem — dieselbe
+Klasse Ausfall wie ein leeres Suchergebnis, das wie eine Antwort aussieht.
+
+Ein `unknown` schliesst nie ein Issue: zuzumachen hiesse zu behaupten, der
+Vergleich sei gelaufen. Ein Issue mit stabilem Titel-Präfix und Label `upstream`
+wird kommentiert statt verdoppelt, damit ein zweiter roter Montag den Thread
+verlängert und nicht die Liste.
+
+Kadenz und Zuständigkeit stehen in CONTRIBUTING (beide Sprachen) und im README —
+samt dem Satz, ohne den der Job beim ersten transienten Rot deaktiviert wird: Ein
+roter Live-Lauf heisst nicht zwingend «unser Fehler», sondern «der Vertrag mit
+der Quelle hat sich geändert oder die Quelle ist aus».
+
+Gemessen mit `live_schedule_probe` aus `mcp-continuous-auditor`: vorher
+`LIVE_UNSCHEDULED`, jetzt `LIVE_SCHEDULED`, Exit 0.
+
 ### Behoben — «19-Jährige» stand seit dem Kopfzeilen-Fix in jeder Zeile auf «—»
 
 `_normalise_keys` senkt seit dem 3.8.2026 jede BISTA-Kopfzeile auf
