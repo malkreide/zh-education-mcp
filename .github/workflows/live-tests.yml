@@ -1,0 +1,235 @@
+# Die Live-Suite gegen BISTA — wöchentlich, und sichtbar wenn sie fällt.
+#
+# WARUM ES DIESEN WORKFLOW GIBT
+# -----------------------------
+# `ci.yml` fährt `pytest tests/ -m "not live"`. Das ist richtig: Ein fremder
+# 503 darf keinen fremden Pull Request rot machen, denn eine Suite, die das
+# tut, wird abgeschaltet — und eine abgeschaltete Suite prüft nichts.
+#
+# Der Ausschluss erzeugt aber genau die Blindheit, gegen die die Live-Tests
+# geschrieben wurden. `-m "not live"` ist kein Ort, an dem Tests laufen; es ist
+# die Abwesenheit eines solchen. Und die drei Tests, die hier laufen, sind die
+# einzigen im Repo, die einer falschen Grundannahme über BISTA widersprechen
+# können: Jeder andere Test prüft gegen eine Fixture, und die Fixture ist aus
+# derselben Annahme geschrieben wie der Code.
+#
+# Belegt, zweimal:
+#
+#   * 3.8.2026 — der Code las `r["Schulgemeinde"]`, BISTA lieferte
+#     `schulgemeinde`. Vier von sechs Datensätzen, acht Tools, alle Unit-Tests
+#     grün. Gemeldet hat es ein Live-Lauf von Hand, nicht die Suite.
+#   * 7.8.2026 — `r.get("Total_19_Jahre_alt")` gegen eine Zeile, deren
+#     Schlüssel der Fix vom 3.8. kleingeschrieben hatte. Die Spalte
+#     «19-Jährige» stand seitdem in jeder Antwort auf «—». Gefunden hat es eine
+#     externe Sonde gegen die Live-Quelle. Auch nicht die Suite.
+#
+# Dieser Workflow ist der Ort, an dem so etwas beim nächsten Mal auffällt.
+#
+# DREI ANTWORTEN, NICHT ZWEI
+# --------------------------
+# `if: failure()` allein kann nicht zwischen «ein Test ist rot» und «der Job
+# kam gar nicht bis zu den Tests» unterscheiden — ein fehlgeschlagenes
+# `pip install` sieht genauso aus wie ein gebrochener Vertrag mit der Quelle.
+# Beides gehört gesehen, nur das Erste gehört gefixt, und ein Issue, das für
+# beides aufgeht, wird nach der zweiten Woche nicht mehr angeschaut.
+#
+# Deshalb wird der Exit-Code von pytest ausgewertet, nicht der des Jobs:
+#
+#   0        alle Live-Tests grün          -> clear   (offenes Issue schliessen)
+#   1        Tests sind gefallen           -> finding (Issue öffnen/aktualisieren)
+#   5        NICHTS EINGESAMMELT           -> unknown (nichts am Issue tun)
+#   2,3,4    pytest selbst kam nicht durch -> unknown (nichts am Issue tun)
+#
+# Die 5 ist die wichtigste Zeile. Benennt jemand die Marke um oder verschiebt
+# die Tests, sammelt `-m live` null Tests ein und pytest meldet Erfolg. Ein
+# Workflow, der das als grün bucht, hat sich selbst stillgelegt und sagt es
+# niemandem — dieselbe Klasse Ausfall wie ein leeres Suchergebnis, das wie eine
+# Antwort aussieht.
+#
+# Ein `unknown` schliesst nie ein Issue. Zuzumachen hiesse zu behaupten, der
+# Vergleich sei gelaufen; er ist es nicht.
+
+name: Live-Tests
+
+on:
+  schedule:
+    # Wöchentlich, Montag früh. Die ungerade Minute ist Absicht: Auf :00 legt
+    # GitHub die Läufe der halben Welt, und ein verzögerter Cron ist ein Cron,
+    # der bei Last auch mal ausfällt.
+    - cron: "23 5 * * 1"
+  # Damit die Suite nach einem Hinweis auf eine Änderung bei BISTA sofort von
+  # Hand laufen kann, statt bis Montag zu warten.
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: live-tests
+  cancel-in-progress: false
+
+jobs:
+  live:
+    name: Live-Suite gegen bista.zh.ch
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Abhängigkeiten installieren
+        run: pip install -e ".[dev]"
+
+      # `continue-on-error`, damit der Auswertungsschritt in jedem Fall läuft.
+      # Rot wird der Job weiter unten, aus dem ausgewerteten Ergebnis.
+      - name: Live-Suite
+        id: suite
+        continue-on-error: true
+        run: |
+          set +e
+          PYTHONPATH=src pytest tests/ -m live -v 2>&1 | tee live-output.txt
+          echo "pytest_exit=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: Ergebnis einordnen
+        id: verdict
+        run: |
+          code="${{ steps.suite.outputs.pytest_exit }}"
+          case "$code" in
+            0) state=clear   ;;
+            1) state=finding ;;
+            5) state=unknown ; reason="pytest hat unter -m live NULL Tests eingesammelt — die Marke oder die Dateien haben sich bewegt, und ein Erfolg ohne Test ist kein Erfolg" ;;
+            *) state=unknown ; reason="pytest kam nicht bis zu einem Testergebnis (Exit $code)" ;;
+          esac
+          echo "state=$state" >> "$GITHUB_OUTPUT"
+          echo "reason=$reason" >> "$GITHUB_OUTPUT"
+          echo "::notice title=Live-Suite::$state (pytest exit $code)"
+
+          # Die letzten Zeilen der Ausgabe wandern ins Issue. Ohne sie muss
+          # jemand erst den Lauf öffnen, um zu sehen, WELCHER Test gefallen
+          # ist — und die Log-Aufbewahrung von Actions ist kürzer als die
+          # Lebensdauer eines Issues.
+          {
+            echo "tail<<PYTEST_TAIL"
+            tail -n 40 live-output.txt || true
+            echo "PYTEST_TAIL"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Issue öffnen, aktualisieren oder schliessen
+        uses: actions/github-script@v7
+        # Über `env`, nicht über `${{ }}` im Skript: Die pytest-Ausgabe ist
+        # fremder Text, der in einem JavaScript-Template-Literal landen würde.
+        # Ein Backtick oder ein `${` darin bricht das Skript oder führt aus,
+        # was in einem Assertion-Fehler stand. `env` reicht denselben Text als
+        # Wert durch, nicht als Quelltext.
+        env:
+          LIVE_STATE: ${{ steps.verdict.outputs.state }}
+          LIVE_REASON: ${{ steps.verdict.outputs.reason }}
+          LIVE_TAIL: ${{ steps.verdict.outputs.tail }}
+        with:
+          script: |
+            const state = process.env.LIVE_STATE;
+            const reason = process.env.LIVE_REASON || '';
+            const tail = process.env.LIVE_TAIL || '(keine Ausgabe)';
+            // Stabiles Präfix: Danach wird das bestehende Issue erkannt, damit
+            // ein zweiter roter Montag den Thread verlängert statt einen
+            // zweiten aufzumachen. Zehn Issues zur selben Sache liest niemand.
+            const PREFIX = 'Live-Tests gegen BISTA rot';
+            const LABEL = 'upstream';
+            const run = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}` +
+                        `/actions/runs/${context.runId}`;
+            const heute = new Date().toISOString().slice(0, 10);
+
+            // `issues.listForRepo` statt der Such-API: Die Suche hat ein
+            // eigenes, knappes Rate-Limit und indexiert verzögert — ein frisch
+            // geöffnetes Issue findet sie unter Umständen nicht, und dann legt
+            // der nächste rote Montag ein zweites an.
+            const issues = await github.rest.issues.listForRepo({
+              ...context.repo, state: 'open', labels: LABEL, per_page: 100,
+            });
+            const open = issues.data.find(
+              (i) => !i.pull_request && i.title.startsWith(PREFIX)
+            );
+
+            if (state === 'unknown') {
+              // Weder öffnen noch schliessen. Der Lauf hat nichts über den
+              // Vertrag mit BISTA festgestellt, und ein Issue, das auf so einen
+              // Lauf hin zugeht, behauptet einen Vergleich, den es nicht gab.
+              // Sichtbar wird es über den roten Job und die ::notice.
+              core.warning(`Live-Suite nicht ausgewertet: ${reason}. Am Issue wurde nichts geändert.`);
+              return;
+            }
+
+            if (state === 'finding') {
+              const body = [
+                'Die wöchentliche Live-Suite gegen `www.bista.zh.ch` ist rot.',
+                '',
+                `Lauf: ${run}`,
+                '',
+                '**Rot heisst hier nicht zwingend «unser Fehler».** Es heisst: Der Vertrag',
+                'mit der Quelle hat sich geändert, oder die Quelle ist gerade aus. Beides',
+                'gehört gesehen, nur das Erste gehört gefixt — und genau das Erste sehen die',
+                'Unit-Tests nicht, weil ihre Fixtures aus derselben Annahme geschrieben sind',
+                'wie der Code.',
+                '',
+                'Hat sich eine Kopfzeile oder ein Wertebereich geändert, sagt',
+                '`schema_fields.toml` mit den Sonden aus `mcp-continuous-auditor`, welche',
+                'Spalte es war.',
+                '',
+                '<details><summary>Letzte Zeilen der pytest-Ausgabe</summary>',
+                '',
+                '```',
+                tail,
+                '```',
+                '',
+                '</details>',
+              ].join('\n');
+
+              if (open) {
+                await github.rest.issues.createComment({
+                  ...context.repo, issue_number: open.number,
+                  body: `Wieder rot am ${heute}.\n\n${body}`,
+                });
+              } else {
+                // Das Label anlegen, falls es das Repo noch nicht kennt: Sonst
+                // scheitert `issues.create` beim allerersten roten Lauf — genau
+                // dann, wenn das Issue gebraucht wird.
+                try {
+                  await github.rest.issues.createLabel({
+                    ...context.repo, name: LABEL, color: 'd93f0b',
+                    description: 'Vertrag mit einer externen Quelle betroffen',
+                  });
+                } catch (e) {
+                  if (e.status !== 422) throw e;  // 422 = existiert bereits
+                }
+                await github.rest.issues.create({
+                  ...context.repo, title: `${PREFIX} (${heute})`, body, labels: [LABEL],
+                });
+              }
+              return;
+            }
+
+            // clear — und nur hier wird zugemacht, weil nur hier wirklich
+            // verglichen und nichts gefunden wurde.
+            if (open) {
+              await github.rest.issues.createComment({
+                ...context.repo, issue_number: open.number,
+                body: `Die Live-Suite ist wieder grün. Lauf: ${run}`,
+              });
+              await github.rest.issues.update({
+                ...context.repo, issue_number: open.number,
+                state: 'closed', state_reason: 'completed',
+              });
+            }
+
+      # Erst hier wird der Job rot. `clear` ist grün; `finding` und `unknown`
+      # sind beide rot, aber nur `finding` hat oben ein Issue erzeugt — der
+      # Unterschied steht im Log und in der ::notice, nicht im Exit-Code.
+      - name: Ergebnis durchreichen
+        if: steps.verdict.outputs.state != 'clear'
+        run: |
+          echo "Live-Suite: ${{ steps.verdict.outputs.state }}"
+          echo "${{ steps.verdict.outputs.reason }}"
+          exit 1
