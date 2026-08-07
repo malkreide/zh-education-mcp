@@ -1,0 +1,208 @@
+# schema_fields.toml — die Zuordnung, die `schema_field_probe.py` und
+# `value_domain_probe.py` aus `mcp-continuous-auditor` lesen.
+#
+# Sie beantworten zwei Fragen, die dieser Code über sich selbst nicht
+# beantworten kann:
+#
+#   1. Sind die Feldnamen, die wir aus einer Antwort lesen, die Namen, die
+#      BISTA gerade liefert?
+#   2. Halten die Spalten, die wir durch `int()`/`float()` schicken, überhaupt
+#      Zahlen?
+#
+# Beide Fragen stehen hier, weil beide schon einmal falsch beantwortet waren —
+# am 3. August 2026, und zwar ohne dass irgendein Test rot wurde:
+#
+#   * Der Code las `r["Schulgemeinde"]`, BISTA lieferte `schulgemeinde`. Das
+#     Ergebnis war kein Fehler, sondern eine leere Trefferliste mit «nicht
+#     gefunden» — ein Ausfall, der wie eine Antwort aussieht. Vier von sechs
+#     Datensätzen, acht Tools.
+#   * `int()` auf `anzahl` warf, weil BISTA bei kleinen Fallzahlen aus
+#     Datenschutzgründen «1 bis 5» schreibt. 18.6 % der Sek-I-Zeilen.
+#
+# Beides ist behoben (`_normalise_keys`, `_parse_count`). Diese Datei ist der
+# Grund, warum es beim nächsten Mal auffällt, statt Monate zu stehen.
+#
+# Ausführen:
+#   python scripts/schema_field_probe.py --target <dieses Repo>
+#   python scripts/value_domain_probe.py --target <dieses Repo>
+# aus einem Checkout von malkreide/mcp-continuous-auditor.
+
+# ══════════════════════════════════════════════════════════════════════════════
+# WARUM ÜBERALL `normalised = "lower"` STEHT
+# ══════════════════════════════════════════════════════════════════════════════
+# `data._fetch_csv` legt jede Zeile durch `_normalise_keys`, das die Kopfzeile
+# einmal auf Kleinschreibung senkt. Der Rest des Moduls liest deshalb *nicht*
+# die Kopfzeile, die über die Leitung kam.
+#
+# Ohne diese Zeile vergleicht die Sonde unsere Kleinschreibung gegen
+# `Stand,Kanton,Jahr,…` und meldet Treffer, die keine sind — und begräbt darunter
+# den einen, der echt ist. Deklariert wird gegen die transformierte Kopfzeile
+# verglichen; die rohe steht weiterhin im Report, damit er von Hand gegen die
+# Quelle prüfbar bleibt.
+#
+# Nicht zu deklarieren ist die sichere Richtung: eine nicht deklarierte
+# Normalisierung erzeugt den Befund trotzdem.
+
+# ══════════════════════════════════════════════════════════════════════════════
+# EP_SEK1 — Lernende Sekundarstufe I nach Anforderungstyp
+# Kopfzeile am 7.8.2026: stand,kanton,jahr,schulgemeinde,anforderungstyp,anzahl
+# ══════════════════════════════════════════════════════════════════════════════
+[[dataset]]
+id = "sek1_anforderungstyp"
+url = "https://www.bista.zh.ch/basicapi/ogd/data_lernende_sekundarstufe_i_anforderungstyp"
+format = "csv"
+delimiter = ","
+normalised = "lower"
+
+# `_parse_count` ist der EINE Ort, an dem aus einer BISTA-Zelle eine Zahl wird.
+# Genau deshalb sieht `value_domain_probe` von sich aus nichts: An keiner
+# Fundstelle steht mehr `int(r["anzahl"])`. Der Helfer wird darum namentlich
+# deklariert. `tolerant = true`, weil er `None` zurückgibt statt zu werfen —
+# die Aufrufstellen sind damit abgesichert wie durch ein `try`, und der Anteil
+# wird gemessen und ausgewiesen, ohne dass ein Gate rot wird.
+[[dataset.coercer]]
+name = "_parse_count"
+tolerant = true
+
+[[dataset.site]]
+file = "src/zh_education_mcp/tools.py"
+symbol = "zh_edu_list_schulgemeinden"
+
+[[dataset.site]]
+file = "src/zh_education_mcp/tools.py"
+symbol = "zh_edu_schulkreis_trend"
+
+[[dataset.site]]
+file = "src/zh_education_mcp/tools.py"
+symbol = "zh_edu_sek1_profil"
+
+# ══════════════════════════════════════════════════════════════════════════════
+# EP_UEBERSICHT — Übersicht alle Lernenden
+# Kopfzeile am 7.8.2026 durchgehend gross:
+#   Stand,Kanton,Jahr,Stufe,Schultyp,Geschlecht,Staatsangehoerigkeit,
+#   Traegerschaft,Finanzierung,Anzahl
+# Genau der Datensatz, für den `normalised` gebraucht wird.
+# ══════════════════════════════════════════════════════════════════════════════
+[[dataset]]
+id = "uebersicht_alle_lernende"
+url = "https://www.bista.zh.ch/basicapi/ogd/data_uebersicht_alle_lernende"
+format = "csv"
+delimiter = ","
+normalised = "lower"
+
+# Siehe die Begründung beim ersten Datensatz.
+[[dataset.coercer]]
+name = "_parse_count"
+tolerant = true
+
+[[dataset.site]]
+file = "src/zh_education_mcp/tools.py"
+symbol = "zh_edu_overview"
+
+# ══════════════════════════════════════════════════════════════════════════════
+# EP_NAT_REGIONAL — Lernende Regelschule regional nach Staatsangehörigkeit
+# Kopfzeile am 7.8.2026 gemischt INNERHALB einer Zeile:
+#   stand,kanton,jahr,schulgemeinde,staatsangehoerigkeit,
+#   staatsangehoerigkeit_ISO2_Code,anzahl
+# ══════════════════════════════════════════════════════════════════════════════
+[[dataset]]
+id = "staatsangehoerigkeit_regional"
+url = "https://www.bista.zh.ch/basicapi/ogd/data_lernende_regelschule_regional_staatsangehoerigkeit"
+format = "csv"
+delimiter = ","
+normalised = "lower"
+
+# Siehe die Begründung beim ersten Datensatz.
+[[dataset.coercer]]
+name = "_parse_count"
+tolerant = true
+
+[[dataset.site]]
+file = "src/zh_education_mcp/tools.py"
+symbol = "zh_edu_staatsangehoerigkeiten"
+
+# ══════════════════════════════════════════════════════════════════════════════
+# EP_MATURITAET — Maturitätsquote Gemeinden und Kanton
+# Kopfzeile am 7.8.2026 durchgehend gross:
+#   Stand,Stand_Gemeindegrenzen,Bezirk,Gemeinde_BFSCode,Gemeinde,
+#   Total_Abschluss_gymnasial,Total_19_Jahre_alt,Maturitaetsquote_gymnasial
+# ══════════════════════════════════════════════════════════════════════════════
+[[dataset]]
+id = "maturitaetsquote"
+url = "https://www.bista.zh.ch/basicapi/ogd/data_maturitaetsquote_gemeinden_und_kanton"
+format = "csv"
+delimiter = ","
+normalised = "lower"
+
+# Siehe die Begründung beim ersten Datensatz.
+[[dataset.coercer]]
+name = "_parse_count"
+tolerant = true
+
+[[dataset.site]]
+file = "src/zh_education_mcp/tools.py"
+symbol = "zh_edu_maturitaetsquote"
+
+# ══════════════════════════════════════════════════════════════════════════════
+# EP_WOHNORT — Lernende nach Wohngemeinde
+# Kopfzeile am 7.8.2026 gemischt INNERHALB einer Zeile:
+#   jahr,gebietstyp_Code,gebietstyp,gebiet_Code,gebiet_Bezeichnung,stufe,anzahl
+# ══════════════════════════════════════════════════════════════════════════════
+[[dataset]]
+id = "wohnort"
+url = "https://www.bista.zh.ch/basicapi/ogd/data_lernende_nach_wohngemeinde"
+format = "csv"
+delimiter = ","
+normalised = "lower"
+
+# Siehe die Begründung beim ersten Datensatz.
+[[dataset.coercer]]
+name = "_parse_count"
+tolerant = true
+
+[[dataset.site]]
+file = "src/zh_education_mcp/tools.py"
+symbol = "zh_edu_wohnort_trend"
+
+# ══════════════════════════════════════════════════════════════════════════════
+# EP_MITTELSCHULEN — Lernende Mittelschulen
+# Kopfzeile am 7.8.2026: stand,kanton,jahr,stufe,mittelschultyp,bildungsart,
+#   geschlecht,finanzierung,staatsangehoerigkeit,anzahl
+# ══════════════════════════════════════════════════════════════════════════════
+[[dataset]]
+id = "mittelschulen"
+url = "https://www.bista.zh.ch/basicapi/ogd/data_lernende_mittelschulen"
+format = "csv"
+delimiter = ","
+normalised = "lower"
+
+# Siehe die Begründung beim ersten Datensatz.
+[[dataset.coercer]]
+name = "_parse_count"
+tolerant = true
+
+[[dataset.site]]
+file = "src/zh_education_mcp/tools.py"
+symbol = "zh_edu_mittelschulen"
+
+# ══════════════════════════════════════════════════════════════════════════════
+# WAS HIER BEWUSST NICHT STEHT
+# ══════════════════════════════════════════════════════════════════════════════
+# `fixture = …` fehlt bei allen sechs. Der Grund ist nicht Faulheit: Die
+# Fixtures dieses Repos sind keine aufgezeichneten Kopfzeilen, sondern
+# handgeschriebene Zeilen in den Tests. Es gibt keine Datei, deren Kopfzeile
+# gegen die Quelle gehalten werden könnte, also gibt es nichts zu deklarieren.
+# Sobald eine echte CSV-Fixture dazukommt, gehört sie hierher — die Sonde meldet
+# dann `FIXTURE_PINS_OLD_HEADER`, sobald sie veraltet, und das ist genau der
+# Satz, der 2026-08-03 gefehlt hat.
+#
+# `ignore = […]` fehlt ebenfalls. Die Korroborations-Regel der Sonde trägt das
+# schon: Ein Name wird nur dann als fehlend gemeldet, wenn ein *anderer* Name
+# derselben Fundstelle auflöst. Eine Ausnahme, die niemand liest, ist ein
+# blinder Fleck; sie kommt dazu, wenn sie gebraucht wird, nicht vorsorglich.
+#
+# `_parse_count` und `_fetch_csv` in `data.py` sind keine Fundstellen. Sie lesen
+# keinen benannten Feldnamen — `_parse_count` nimmt einen bereits ausgelesenen
+# Wert entgegen. Eine Fundstelle, die keinen Spaltennamen nennt, ist für beide
+# Sonden nichts zu messen, und sie als Fundstelle einzutragen hiesse, Deckung
+# zu behaupten, die es nicht gibt.
