@@ -607,8 +607,19 @@ async def zh_edu_maturitaetsquote(params: MaturitaetsquoteInput, ctx: Context | 
             abschl = r.get("total_abschluss_gymnasial", "—")
             pop = r.get("total_19_jahre_alt", "—")
             quote = r.get("maturitaetsquote_gymnasial", "—")
+            # KEIN `* 100`. Die Quelle publiziert diese Spalte bereits als
+            # Prozentzahl: Gegenprobe an einer echten Zeile 25/85 = 29.41, und
+            # die Spalte sagt 29.41; der Wertebereich ueber alle 1658 Zeilen
+            # liegt bei 0.71 bis 54.19. Mit der Multiplikation meldete das Tool
+            # «2290.0 %» statt «22.9 %».
+            #
+            # Aufgefallen ist das erst, als die Fixtures aufgezeichnet statt
+            # ausgedacht wurden: Die alte Fixture schrieb 0.15 in diese Spalte
+            # — eine Bruchzahl, die es in der Quelle nicht gibt — und `* 100`
+            # ergab daraus die plausiblen «15.0 %». Fixture und Produktivcode
+            # trugen denselben Irrtum, also konnte kein Test ihn widerlegen.
             try:
-                quote_str = f"{float(quote) * 100:.1f}%" if quote != "—" else "—"
+                quote_str = f"{float(quote):.1f}%" if quote != "—" else "—"
             except (ValueError, TypeError):
                 quote_str = f"{quote}%"
             lines.append(f"| {gem} | {bez} | {abschl} | {pop} | {quote_str} |")

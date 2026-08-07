@@ -7,6 +7,69 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Behoben — die Maturitätsquote war um den Faktor 100 zu hoch
+
+`zh_edu_maturitaetsquote` rechnete `float(quote) * 100`. Die Quelle publiziert
+`Maturitaetsquote_gymnasial` aber **bereits als Prozentzahl**: Gegenprobe an
+einer echten Zeile 25/85 = 29.41, und die Spalte sagt 29.41; der Wertebereich
+über alle 1658 Zeilen liegt bei 0.71 bis 54.19. Gegen die echte Quelle meldete
+das Tool damit Quoten wie **«2290.0 %»** statt «22.9 %».
+
+**Warum das niemand gesehen hat, ist der eigentliche Eintrag.** Die Fixture war
+erfunden — sie trug `0.15` in dieser Spalte, eine Bruchzahl, die es in der
+Quelle nicht gibt. Mit `* 100` ergaben sich daraus die vollkommen plausiblen
+«15.0 %». Produktivcode und Fixture trugen denselben Irrtum, stammten aus
+demselben Kopf und derselben Stunde, also konnte kein Test ihn widerlegen. Der
+Fehler ist nicht beim Lesen des Codes aufgefallen, sondern beim **Aufzeichnen
+der Fixtures** (siehe unten).
+
+Festgehalten wird er jetzt zweimal: durch die Zusicherung in
+`test_maturitaetsquote_zeigt_die_19_jaehrigen`, die auf der aufgezeichneten
+Zeile «22.9 %» erwartet, und durch
+`test_die_maturitaetsquote_wird_nicht_ein_zweites_mal_mal_hundert_genommen`,
+die die **Einheit** der Quellspalte prüft statt einer Zahl — sie schlägt an,
+wenn BISTA eines Tages auf Bruchzahlen umstellt. Gegenprobe geführt: Mit dem
+wiederhergestellten `* 100` fallen beide.
+
+### Hinzugefügt — die Fixtures sind aufgezeichnet, nicht mehr ausgedacht
+
+Bis hierher standen die Unit-Test-Daten als CSV-Literale in den Testdateien,
+überschrieben mit «Sample CSV-Daten (anonymisiert)» und gefüllt mit runden
+Phantasiezahlen (500, 300, 10746). Ein handgeschriebener Mock kodiert die
+Annahme seines Autors und kann sie deshalb prinzipiell nicht widerlegen.
+
+Neu: **`scripts/record_fixtures.py`** zeichnet alle sechs Endpunkte von der
+Live-Quelle auf und schreibt `tests/fixtures/*.csv` plus
+`tests/fixtures/PROVENANCE.md` mit Endpunkt, **Aufzeichnungsdatum**,
+Auswahlregel, Zeilenzahl und SHA-256 je Datei. Der Abruf liegt als Skript
+daneben und nicht als Handgriff im Gedächtnis: So kostet das nächste Datum
+einen Lauf statt einer Rekonstruktion.
+
+Ohne Datum ist «aufgezeichnet» nach zwei Jahren von «ausgedacht» nicht mehr zu
+unterscheiden — die Datei sieht gleich aus.
+
+**Was der Wechsel sofort aufgedeckt hat:**
+
+- Die Maturitätsquote war um Faktor 100 zu hoch (oben).
+- Die `maturitaet`-Fixture behauptete ein Schema, das die Quelle nicht hat:
+  `Kanton,Jahr` erfunden, `Stand_Gemeindegrenzen,Gemeinde_BFSCode` gefehlt.
+- Die `mittelschulen`-Fixture kannte `stufe`, `finanzierung` und
+  `staatsangehoerigkeit` nicht und kürzte die Typen zu «FMS»/«HMS» — die
+  Quelle schreibt «Fachmittelschule» und «Handelsmittelschule» aus.
+- Vier Zusicherungen hatten «2024» hartcodiert, während die Quelle auf 2025
+  steht. Sie leiten den Jahrgang jetzt über `latest_year()` aus der Fixture ab:
+  Ein Test, der «das aktuellste Jahr» im Namen führt und eine Jahreszahl
+  hinschreibt, prüft ab dem nächsten Jahrgang etwas anderes, als er verspricht.
+
+Die aufgezeichneten Kopfzeilen bleiben **uneinheitlich**, so wie die Quelle sie
+liefert — vier Endpunkte klein, zwei gross, und zwei mischen innerhalb einer
+Zeile (`gebiet_Bezeichnung`, `staatsangehoerigkeit_ISO2_Code`). Sie zu
+vereinheitlichen würde genau die Eigenschaft wegputzen, an der der Server am
+3.8.2026 gescheitert ist.
+
+Der Rahmen dazu steht im Skill [`mcp-data-fidelity`](https://github.com/malkreide/mcp-data-fidelity-skill)
+unter Regel 5 und im Katalog-Check `OPS-009`.
+
 ### Hinzugefuegt — die Live-Suite läuft geplant, statt nur markiert zu sein
 
 `ci.yml` fährt `pytest tests/ -m "not live"`. Das ist richtig — ein fremder 503

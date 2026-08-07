@@ -152,3 +152,42 @@ class TestSuppressionNote:
         respx.get(URL).mock(return_value=httpx.Response(200, text=SUPPRESSED_CSV))
         result = await zh_edu_sek1_profil(Sek1ProfilInput(schulgemeinde="Winterthur"))
         assert not result.startswith("Fehler")
+
+
+# ── Die Maturitätsquote ist bereits eine Prozentzahl (FID-007-Nachbarschaft) ──
+
+
+def test_die_maturitaetsquote_wird_nicht_ein_zweites_mal_mal_hundert_genommen():
+    """Regression: `* 100` auf einer Spalte, die schon in Prozent steht.
+
+    Gefunden beim Aufzeichnen der Fixtures, nicht beim Lesen des Codes. Die
+    alte, erfundene Fixture schrieb `0.15` in `Maturitaetsquote_gymnasial` —
+    eine Bruchzahl, die es in der Quelle nicht gibt. Mit `* 100` ergab das die
+    plausiblen «15.0 %», und weil Produktivcode und Fixture denselben Irrtum
+    trugen, konnte kein Test ihn widerlegen. Gegen die echte Quelle meldete
+    das Tool «2290.0 %».
+
+    Diese Zusicherung hält die Einheit fest, nicht die Zahl: Sie prüft, dass
+    die ausgegebene Quote zu `Abschlüsse / 19-Jährige` passt — und das ist
+    genau die Rechnung, welche die Quelle in dieser Spalte publiziert.
+    """
+    import csv
+    import io
+
+    from fixture_data import csv_fixture
+
+    rows = list(csv.DictReader(io.StringIO(csv_fixture("maturitaet"))))
+    assert rows, "Fixture leer — siehe tests/fixtures/PROVENANCE.md"
+
+    for row in rows:
+        lowered = {(k or "").lower(): v for k, v in row.items()}
+        quote = float(lowered["maturitaetsquote_gymnasial"])
+        abschluesse = float(lowered["total_abschluss_gymnasial"])
+        neunzehnjaehrige = float(lowered["total_19_jahre_alt"])
+        erwartet = abschluesse / neunzehnjaehrige * 100
+        assert abs(quote - erwartet) < 0.05, (
+            f"{lowered['gemeinde']}: Spalte sagt {quote}, "
+            f"{abschluesse}/{neunzehnjaehrige} ergibt {erwartet:.2f} — "
+            "die Spalte ist keine Prozentzahl mehr, Einheit upstream geändert"
+        )
+        assert quote <= 100.0, f"Quote über 100 %: {quote}"
