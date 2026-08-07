@@ -53,6 +53,7 @@ url = "https://www.bista.zh.ch/basicapi/ogd/data_lernende_sekundarstufe_i_anford
 format = "csv"
 delimiter = ","
 normalised = "lower"
+fixture = "tests/fixtures/sek1.csv"
 
 # `_parse_count` ist der EINE Ort, an dem aus einer BISTA-Zelle eine Zahl wird.
 # Genau deshalb sieht `value_domain_probe` von sich aus nichts: An keiner
@@ -89,6 +90,7 @@ url = "https://www.bista.zh.ch/basicapi/ogd/data_uebersicht_alle_lernende"
 format = "csv"
 delimiter = ","
 normalised = "lower"
+fixture = "tests/fixtures/uebersicht.csv"
 
 # Siehe die Begründung beim ersten Datensatz.
 [[dataset.coercer]]
@@ -111,6 +113,7 @@ url = "https://www.bista.zh.ch/basicapi/ogd/data_lernende_regelschule_regional_s
 format = "csv"
 delimiter = ","
 normalised = "lower"
+fixture = "tests/fixtures/nat_regional.csv"
 
 # Siehe die Begründung beim ersten Datensatz.
 [[dataset.coercer]]
@@ -133,6 +136,7 @@ url = "https://www.bista.zh.ch/basicapi/ogd/data_maturitaetsquote_gemeinden_und_
 format = "csv"
 delimiter = ","
 normalised = "lower"
+fixture = "tests/fixtures/maturitaet.csv"
 
 # Siehe die Begründung beim ersten Datensatz.
 [[dataset.coercer]]
@@ -154,6 +158,7 @@ url = "https://www.bista.zh.ch/basicapi/ogd/data_lernende_nach_wohngemeinde"
 format = "csv"
 delimiter = ","
 normalised = "lower"
+fixture = "tests/fixtures/wohnort.csv"
 
 # Siehe die Begründung beim ersten Datensatz.
 [[dataset.coercer]]
@@ -175,6 +180,7 @@ url = "https://www.bista.zh.ch/basicapi/ogd/data_lernende_mittelschulen"
 format = "csv"
 delimiter = ","
 normalised = "lower"
+fixture = "tests/fixtures/mittelschulen.csv"
 
 # Siehe die Begründung beim ersten Datensatz.
 [[dataset.coercer]]
@@ -188,13 +194,28 @@ symbol = "zh_edu_mittelschulen"
 # ══════════════════════════════════════════════════════════════════════════════
 # WAS HIER BEWUSST NICHT STEHT
 # ══════════════════════════════════════════════════════════════════════════════
-# `fixture = …` fehlt bei allen sechs. Der Grund ist nicht Faulheit: Die
-# Fixtures dieses Repos sind keine aufgezeichneten Kopfzeilen, sondern
-# handgeschriebene Zeilen in den Tests. Es gibt keine Datei, deren Kopfzeile
-# gegen die Quelle gehalten werden könnte, also gibt es nichts zu deklarieren.
-# Sobald eine echte CSV-Fixture dazukommt, gehört sie hierher — die Sonde meldet
-# dann `FIXTURE_PINS_OLD_HEADER`, sobald sie veraltet, und das ist genau der
-# Satz, der 2026-08-03 gefehlt hat.
+# `fixture = …` stand hier zunaechst bei keinem der sechs, und der Grund war
+# nicht Faulheit: Die Fixtures dieses Repos waren handgeschriebene Zeilen in den
+# Tests, keine aufgezeichneten Kopfzeilen. Es gab keine Datei, deren Kopfzeile
+# gegen die Quelle gehalten werden konnte.
+#
+# Seit `scripts/record_fixtures.py` gibt es sie — sechs CSV unter
+# `tests/fixtures/`, mit `PROVENANCE.md` und Aufzeichnungsdatum. Damit gehoeren
+# sie hierher, und sie stehen jetzt oben bei jedem Datensatz.
+#
+# Was das bringt: Die Sonde meldet `FIXTURE_PINS_OLD_HEADER`, sobald eine
+# Aufzeichnung Namen pinnt, die die Quelle nicht mehr sendet. Das ist der Satz,
+# der am 3.8.2026 gefehlt hat — die Tests waren gruen, weil sie die Annahme des
+# Codes gegen eine Aufzeichnung derselben Annahme hielten, und niemand konnte
+# das sehen.
+#
+# Die Fixture ist dabei ausdruecklich NICHT der Massstab: Verglichen wird der
+# Code gegen die Quelle. Die Fixture wird nur gelesen, um zu erklaeren, warum
+# eine gruene Suite nichts bedeutet haette.
+#
+# Am Tag der Aufzeichnung meldet die Probe erwartungsgemaess nichts — eine heute
+# aufgezeichnete Kopfzeile kann nicht die von gestern pinnen. Der Nutzen faengt
+# beim naechsten Wechsel bei BISTA an, und dafuer muss die Zeile vorher da sein.
 #
 # `ignore = […]` fehlt ebenfalls. Die Korroborations-Regel der Sonde trägt das
 # schon: Ein Name wird nur dann als fehlend gemeldet, wenn ein *anderer* Name
