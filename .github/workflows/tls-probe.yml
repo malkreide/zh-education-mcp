@@ -1,0 +1,69 @@
+# Eine Sonde, kein Wächter.
+#
+# Sie beantwortet genau eine Frage: Verändert ein Import den TLS-Verifizierer
+# dieses Prozesses? Die Begründung, die Vorgeschichte und der Aufbau der
+# Messung stehen im Kopf von `scripts/tls_import_probe.py` — hier steht nur,
+# warum das ein eigener Workflow ist.
+#
+# WARUM NICHT IN `live-tests.yml`
+# -------------------------------
+# Weil jener Workflow einen Zustand führt. Er öffnet, kommentiert und
+# schliesst ein Issue, und jede Zeile darin ist darauf ausgelegt, keinen
+# Vergleich zu behaupten, der nicht stattgefunden hat. Eine Diagnose, die
+# dort mitläuft, kann diesen Zustand nur stören — und ein Wächter, dem man
+# beim Diagnostizieren zusieht, ist zweimal falsch, wenn er einmal irrt.
+#
+# Diese Sonde führt keinen Zustand. Sie hat `contents: read` und sonst
+# nichts; sie kann kein Issue anfassen, weil ihr die Berechtigung dazu
+# fehlt. Das ist Absicht und nicht Sparsamkeit.
+#
+# Sie läuft auch nach keinem Zeitplan. Eine Sonde, die wöchentlich feuert,
+# ist ein Wächter, den niemand als solchen geschrieben hat.
+#
+# ROT HEISST HIER «GEFUNDEN»
+# --------------------------
+# Der übliche Bezug ist umgekehrt: Der Job wird rot, wenn die Zustände sich
+# unterscheiden, also wenn die Vermutung sich bestätigt. Grün heisst, dass
+# kein Unterschied messbar war und die Vermutung fällt. Beides ist ein
+# Ergebnis; der Exit-Code sagt nur, welches.
+
+name: TLS-Import-Sonde
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: Verändert ein Import den TLS-Stack?
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Abhängigkeiten installieren
+        run: pip install -e ".[dev]"
+
+      # Die URL kommt aus dem Paket, aber über einen **eigenen** Prozess.
+      # Würde das Skript sie selbst aus `constants` lesen, wäre `zh_education_mcp`
+      # schon importiert, bevor S0 gemessen ist — und S0 wäre nicht mehr der
+      # nackte Zustand, den es messen soll.
+      - name: Ziel-URL bestimmen
+        id: target
+        env:
+          PYTHONPATH: src
+        run: |
+          url="$(python -c 'from zh_education_mcp.constants import BISTA_API, EP_SEK1
+          print(f"{BISTA_API}/{EP_SEK1}")')"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "Ziel: $url"
+
+      - name: Sonde
+        env:
+          PYTHONPATH: src
+        run: python scripts/tls_import_probe.py "${{ steps.target.outputs.url }}"
