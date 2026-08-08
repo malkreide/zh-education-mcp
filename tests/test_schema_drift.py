@@ -19,7 +19,16 @@ URL = f"{BISTA_API}/{EP_SEK1}"
 
 
 @pytest.fixture(autouse=True)
-def _stub_dns(monkeypatch):
+def _stub_dns(request, monkeypatch):
+    # Dieselbe Ausnahme wie in `test_server.py`, aus demselben Grund — hier
+    # allerdings vorsorglich: Diese Datei hat heute keinen Live-Test. Der Stub
+    # lenkt auf `8.8.8.8` um und wirkt prozessweit; ein Live-Test, der später
+    # hier dazukäme, spräche mit Google statt mit BISTA und bekäme einen
+    # Zertifikatsfehler, der wie ein Befund über die Quelle aussieht. Genau das
+    # ist am 8.8.2026 in `test_server.py` passiert und hat drei Runden gekostet.
+    if "live" in request.keywords:
+        return
+
     import socket
 
     def fake_getaddrinfo(host, port, *a, **k):
