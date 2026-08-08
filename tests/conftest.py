@@ -9,6 +9,7 @@ mockt, kostet sonst rund 14 Sekunden statt Millisekunden.
 from __future__ import annotations
 
 import asyncio
+import socket
 
 import pytest
 
@@ -23,6 +24,59 @@ from zh_education_mcp import http_client
 # Tests greift, greift die bereits gepatchte — genau so ist der Deadline-Test
 # in ``termdat-mcp`` still durchgelaufen, obwohl er nichts geprüft hat.
 _REAL_SLEEP = asyncio.sleep
+
+# Dasselbe für den Namensauflöser, und aus einem teuer bezahlten Grund.
+#
+# Am 8.8.2026 scheiterte ``test_live_bista_api_letzi`` in fünf Läufen mit
+#
+#     certificate is not valid for 'www.bista.zh.ch'
+#
+# Das sah drei Runden lang wie ein Befund über die Quelle aus: erst wie ein
+# falsches Zertifikat, dann wie ein flatternder Knoten, dann wie eine
+# Reihenfolge-Abhängigkeit. Es war keins davon. ``tests/test_server.py`` trug
+# eine ``autouse``-Fixture, die ``getaddrinfo`` auf ``8.8.8.8`` stubbt, damit
+# die Unit-Tests hermetisch bleiben — und sie nahm Live-Tests nicht aus. Der
+# einzige Live-Test jener Datei verband sich also nach ``8.8.8.8:443`` und
+# sandte SNI ``www.bista.zh.ch``. Google antwortet mit einem Zertifikat für
+# ``dns.google``, und fertig ist der «Zertifikatsfehler der Quelle».
+#
+# Verschärfend: ``http_client`` macht ``import socket``, also IST
+# ``http_client.socket`` das Modulobjekt. Wer dessen ``getaddrinfo`` ersetzt,
+# ersetzt es prozessweit — auch für anyio, über das httpx verbindet. Der Stub
+# sieht lokal aus und ist global.
+#
+# Ein Live-Test gegen einen gestubbten Auflöser prüft nichts und behauptet
+# alles. Deshalb steht hier ein Wächter und nicht nur eine Korrektur: Die
+# Korrektur behebt den einen Fall, der Wächter den nächsten.
+_REAL_GETADDRINFO = socket.getaddrinfo
+
+
+def resolver_is_stubbed() -> bool:
+    """Ob irgendetwas den Namensauflöser dieses Prozesses ersetzt hat."""
+    return socket.getaddrinfo is not _REAL_GETADDRINFO
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_call(item):
+    """Bricht einen Live-Test ab, dessen Auflöser gestubbt ist.
+
+    Als Hook und nicht als Fixture, weil die Reihenfolge zählt: Eine Fixture
+    aus ``conftest.py`` wird **vor** den Fixtures des Testmoduls aufgebaut und
+    **nach** ihnen abgebaut. Sie sähe den Stub in keinem der beiden Momente —
+    beim Aufbau ist er noch nicht da, beim Abbau hat ``monkeypatch`` ihn schon
+    zurückgenommen. ``pytest_runtest_call`` läuft dazwischen: nachdem alle
+    Fixtures stehen, bevor der Testkörper beginnt. Das ist der einzige
+    Moment, in dem die Frage überhaupt beantwortbar ist.
+    """
+    if "live" in item.keywords and resolver_is_stubbed():
+        pytest.fail(
+            "Dieser Live-Test läuft gegen einen gestubbten Namensauflöser und "
+            "prüft damit nicht die echte Quelle, sondern irgendeine Adresse. "
+            "Irgendeine `autouse`-Fixture patcht `getaddrinfo`, ohne Live-Tests "
+            "auszunehmen — sie braucht `if 'live' in request.keywords: return`.",
+            pytrace=False,
+        )
+    return (yield)
 
 
 @pytest.fixture(autouse=True)

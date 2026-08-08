@@ -33,9 +33,33 @@ def _clear_cache():
 
 
 @pytest.fixture(autouse=True)
-def _stub_dns(monkeypatch):
-    """getaddrinfo deterministisch auf eine öffentliche IP stubben, damit Unit-
-    Tests hermetisch bleiben (kein echtes DNS) und der Egress-Guard durchlässt."""
+def _stub_dns(request, monkeypatch):
+    """getaddrinfo deterministisch stubben — **ausser** in Live-Tests.
+
+    Für Unit-Tests ist der Stub richtig: Sie sollen hermetisch bleiben, kein
+    echtes DNS befragen, und der Egress-Guard soll sie durchlassen.
+
+    Für Live-Tests war er verheerend, und genau diese Ausnahme hat gefehlt.
+    Der Stub liefert ``8.8.8.8``; ``test_live_bista_api_letzi`` verband sich
+    also dorthin und sandte SNI ``www.bista.zh.ch``. Google antwortet mit
+    einem Zertifikat für ``dns.google``, mithin mit
+
+        certificate is not valid for 'www.bista.zh.ch'
+
+    Das sah drei Runden lang wie ein Befund über BISTA aus und hat zwei
+    Katalogkorrekturen, einen Diagnoseschritt und drei Sonden gekostet, bevor
+    es hier ankam.
+
+    Er wirkt zudem prozessweit statt nur auf ``http_client``: Dort steht
+    ``import socket``, also ist ``http_client.socket`` das Modulobjekt selbst.
+    Auch anyio — über das httpx verbindet — sieht danach den Stub.
+
+    ``conftest.py`` bricht Live-Tests jetzt ab, deren Auflöser gestubbt ist.
+    Diese Ausnahme behebt den Fall, jener Wächter den nächsten.
+    """
+    if "live" in request.keywords:
+        return
+
     import socket
 
     def fake_getaddrinfo(host, port, *a, **k):
