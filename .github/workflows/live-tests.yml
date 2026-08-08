@@ -117,6 +117,138 @@ jobs:
             echo "PYTEST_TAIL"
           } >> "$GITHUB_OUTPUT"
 
+      # WARUM DIESER SCHRITT EXISTIERT
+      # ------------------------------
+      # Am 8.8.2026 fielen zwei Läufe hintereinander, und der Grund war aus
+      # dem Log allein nicht zu klären. Lauf 1 sah zehnmal `502 Bad Gateway`,
+      # Lauf 2 sah stattdessen dreizehn Timeouts — und beide Male endete ein
+      # Verbindungsversuch mit
+      #
+      #     certificate is not valid for 'www.bista.zh.ch'
+      #
+      # Eine Nachmessung von aussen widersprach dem scheinbar: sauberes TLS,
+      # sauberer 502. Sie war wertlos, und das ist die Lehre, die diesen
+      # Schritt bezahlt hat: Jene Messung lief über einen Proxy, der TLS
+      # terminiert und neu signiert (`remote_ip=127.0.0.1`). Sie hat nie das
+      # Zertifikat der Quelle gesehen. Ein Messpunkt, der die Frage gar nicht
+      # erreichen kann, beantwortet sie auch nicht — er sieht nur so aus.
+      #
+      # Der Runner spricht direkt mit der Quelle. Er ist damit der einzige
+      # Ort, an dem sich feststellen lässt, WAS dort antwortet. Also stellt
+      # er es fest, solange der Ausfall noch läuft: eine Diagnose, die erst
+      # beim Nachlesen des Issues von Hand nachgeholt wird, misst einen
+      # anderen Zustand als den, der das Issue erzeugt hat.
+      #
+      # JE ADRESSE, NICHT EINMAL PRO NAME
+      # ---------------------------------
+      # Löst der Name auf mehrere Adressen auf und ist nur eine davon kaputt,
+      # trifft ein einzelnes `openssl s_client -connect <name>:443` mit hoher
+      # Wahrscheinlichkeit eine gesunde und meldet «alles in Ordnung». Das ist
+      # dieselbe Klasse Ausfall, gegen die diese Suite geschrieben ist: ein
+      # Ergebnis, das wie eine Antwort aussieht. Deshalb wird jede aufgelöste
+      # Adresse einzeln angesprochen, mit SNI und Hostnamen-Prüfung.
+      #
+      # AUCH BEI EINEM FELDNAMEN-BEFUND
+      # -------------------------------
+      # Der Schritt läuft bei jedem Ausgang ausser `clear`, also auch dann,
+      # wenn ein Feldname gewandert ist und mit der Verbindung alles stimmt.
+      # Das ist Absicht: «Quelle erreichbar, Zertifikat gültig, Endpunkte
+      # antworten mit 200» ist die Negativkontrolle, die einen echten
+      # Vertragsbruch von einem Ausfall trennt. Sie steht dann eingeklappt im
+      # Issue und kostet nichts.
+      #
+      # Der Schritt darf das Verdikt nicht anfassen. `continue-on-error` plus
+      # Zeitlimits an jedem Aufruf: Eine Diagnose, die den Job hängen lässt,
+      # hat aus einem gemeldeten Ausfall einen unbemerkten gemacht.
+      - name: Verbindung diagnostizieren
+        id: diagnose
+        if: steps.verdict.outputs.state != 'clear'
+        continue-on-error: true
+        env:
+          PYTHONPATH: src
+        run: |
+          host="$(python -c 'from urllib.parse import urlsplit
+          from zh_education_mcp.constants import BISTA_API
+          print(urlsplit(BISTA_API).hostname)')"
+          base="$(python -c 'from zh_education_mcp.constants import BISTA_API
+          print(BISTA_API)')"
+
+          # Die Endpunktliste kommt aus `_READ_FIELDS` und nicht aus dieser
+          # Datei. Eine hier abgeschriebene Liste veraltet still; jene ist die,
+          # gegen die der Server wirklich liest, und `test_read_fields.py`
+          # hält sie vollständig.
+          endpoints="$(python -c 'from zh_education_mcp.data import _READ_FIELDS
+          print("\n".join(sorted(_READ_FIELDS)))')"
+
+          {
+            echo "Vom Runner aus gemessen, $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo
+            echo "## Auflösung"
+            ips="$(getent ahosts "$host" | awk '{print $1}' | sort -u)"
+            if [ -z "$ips" ]; then
+              echo "$host löst auf nichts auf."
+            else
+              echo "$ips"
+            fi
+            echo
+            echo "## Zertifikat je Adresse (SNI: $host)"
+            for ip in $ips; do
+              echo
+              echo "### $ip"
+              # Streng: schlägt fehl, wenn der Name nicht zum Zertifikat passt.
+              # Genau diese Zeile ist die Frage, für die es den Schritt gibt.
+              if timeout 20 openssl s_client -connect "[$ip]:443" \
+                   -servername "$host" -verify_hostname "$host" \
+                   -verify_return_error -brief </dev/null >/dev/null 2>&1; then
+                echo "Hostnamen-Prüfung: BESTANDEN"
+              else
+                echo "Hostnamen-Prüfung: FEHLGESCHLAGEN"
+              fi
+              # Nachsichtig, nur um zu zeigen, WAS geliefert wurde. Ohne den
+              # zweiten Aufruf sagt ein Fehlschlag oben nicht, welcher Name
+              # stattdessen im Zertifikat steht — und das ist die Auskunft,
+              # die den Ausfall erklärt.
+              timeout 20 openssl s_client -connect "[$ip]:443" \
+                -servername "$host" </dev/null 2>/dev/null \
+                | openssl x509 -noout -subject -issuer -dates -ext subjectAltName 2>&1 \
+                || echo "(kein Zertifikat erhalten)"
+            done
+            echo
+            # Damit diese Auskunft nicht dieselbe Falle stellt, in die sie
+            # nachträglich hineingebaut wurde: Steht unter `issuer` keine
+            # öffentliche CA, hat etwas auf dem Weg TLS terminiert und neu
+            # signiert. Dann sagt der ganze Abschnitt nichts über die Quelle.
+            echo "Lesehinweis: Ist der issuer keine öffentliche CA, wurde die"
+            echo "Verbindung unterwegs aufgebrochen — dann gilt nichts hiervon"
+            echo "für die Quelle, sondern nur für den Zwischenstopp."
+            echo
+            echo "## HTTP"
+            # Die Startseite trennt «ganzer Host aus» von «nur die API tot» —
+            # am 8.8. antwortete sie durchgehend mit 200, während alle sechs
+            # Endpunkte 502 lieferten.
+            printf '%-56s %s\n' "Startseite" \
+              "$(curl -sS -o /dev/null --max-time 30 \
+                   -w 'http=%{http_code} tls=%{ssl_verify_result} ip=%{remote_ip}' \
+                   "https://$host/" 2>&1 || echo 'Aufruf fehlgeschlagen')"
+            for ep in $endpoints; do
+              printf '%-56s %s\n' "$ep" \
+                "$(curl -sS -o /dev/null --max-time 30 \
+                     -w 'http=%{http_code} tls=%{ssl_verify_result} ip=%{remote_ip}' \
+                     "$base/$ep" 2>&1 || echo 'Aufruf fehlgeschlagen')"
+            done
+          } > diagnose.txt 2>&1
+
+          cat diagnose.txt
+
+          # Gedeckelt, weil ein Issue-Körper endlich ist und eine Diagnose,
+          # die ihn sprengt, gar nicht ankommt.
+          {
+            echo "text<<DIAGNOSE"
+            head -c 6000 diagnose.txt
+            echo
+            echo "DIAGNOSE"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Issue öffnen, aktualisieren oder schliessen
         uses: actions/github-script@v7
         # Über `env`, nicht über `${{ }}` im Skript: Die pytest-Ausgabe ist
@@ -124,15 +256,20 @@ jobs:
         # Ein Backtick oder ein `${` darin bricht das Skript oder führt aus,
         # was in einem Assertion-Fehler stand. `env` reicht denselben Text als
         # Wert durch, nicht als Quelltext.
+        # Die Diagnose fällt unter dieselbe Regel, und zwar doppelt: Sie
+        # enthält Zertifikatsfelder, also Text, den ein fremder Server
+        # bestimmt.
         env:
           LIVE_STATE: ${{ steps.verdict.outputs.state }}
           LIVE_REASON: ${{ steps.verdict.outputs.reason }}
           LIVE_TAIL: ${{ steps.verdict.outputs.tail }}
+          LIVE_DIAGNOSE: ${{ steps.diagnose.outputs.text }}
         with:
           script: |
             const state = process.env.LIVE_STATE;
             const reason = process.env.LIVE_REASON || '';
             const tail = process.env.LIVE_TAIL || '(keine Ausgabe)';
+            const diagnose = process.env.LIVE_DIAGNOSE || '';
             // Stabiles Präfix: Danach wird das bestehende Issue erkannt, damit
             // ein zweiter roter Montag den Thread verlängert statt einen
             // zweiten aufzumachen. Zehn Issues zur selben Sache liest niemand.
@@ -185,6 +322,15 @@ jobs:
                 '```',
                 '',
                 '</details>',
+                // Die Verbindungsdiagnose vom Runner aus. Sie beantwortet die
+                // Frage, die von aussen nicht zu beantworten ist: was diese
+                // Adresse geliefert hat, als es rot wurde. Fehlt sie, ist der
+                // Diagnoseschritt selbst gescheitert — auch das gehört
+                // sichtbar, statt als Abwesenheit durchzugehen.
+                ...(diagnose
+                  ? ['', '<details><summary>Verbindung vom Runner aus</summary>',
+                     '', '```', diagnose, '```', '', '</details>']
+                  : ['', '_Die Verbindungsdiagnose hat nichts geliefert — der Schritt selbst ist gescheitert._']),
               ].join('\n');
 
               if (open) {
