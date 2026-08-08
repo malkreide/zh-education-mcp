@@ -48,6 +48,13 @@
 #
 # Ein `unknown` schliesst nie ein Issue. Zuzumachen hiesse zu behaupten, der
 # Vergleich sei gelaufen; er ist es nicht.
+#
+# UND EIN SONDENMODUS
+# -------------------
+# Von Hand lässt sich ein `-k`-Ausdruck mitgeben, um einen einzelnen Test zu
+# isolieren. Ein solcher Lauf berührt das Issue nie — auch nicht, wenn er
+# grün ist. Aus demselben Grund wie die 5 oben: Ein Teil der Suite, der
+# durchläuft, ist keine Suite, die durchgelaufen ist.
 
 name: Live-Tests
 
@@ -59,7 +66,14 @@ on:
     - cron: "23 5 * * 1"
   # Damit die Suite nach einem Hinweis auf eine Änderung bei BISTA sofort von
   # Hand laufen kann, statt bis Montag zu warten.
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      k:
+        description: >-
+          pytest -k Ausdruck, um einen einzelnen Live-Test zu isolieren
+          (leer = ganze Suite). Ein gefilterter Lauf berührt das Issue nie.
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -85,12 +99,35 @@ jobs:
 
       # `continue-on-error`, damit der Auswertungsschritt in jedem Fall läuft.
       # Rot wird der Job weiter unten, aus dem ausgewerteten Ergebnis.
+      #
+      # DER FILTER
+      # ----------
+      # Am 8.8.2026 fiel derselbe Test in drei Läufen hintereinander mit einem
+      # TLS-Hostname-Mismatch, während die Diagnose eine Sekunde später ein
+      # gültiges Zertifikat sah. Immer derselbe Test, immer der letzte im
+      # Lauf — zu regelmässig für eine flatternde Quelle. Die Frage, die das
+      # entscheidet, ist eine Reihenfolge-Frage, und sie lässt sich nur
+      # stellen, wenn ein einzelner Test allein laufen kann.
+      #
+      # `K` kommt über `env` in die Shell, nicht über `${{ }}` in den
+      # Quelltext. Ein Ausdruck aus dem Eingabefeld ist Text, den jemand
+      # anderes bestimmt; direkt eingesetzt wäre er ausführbarer Code.
       - name: Live-Suite
         id: suite
         continue-on-error: true
+        env:
+          K: ${{ inputs.k }}
         run: |
           set +e
-          PYTHONPATH=src pytest tests/ -m live -v 2>&1 | tee live-output.txt
+          args=(tests/ -m live -v)
+          if [ -n "$K" ]; then
+            args+=(-k "$K")
+            echo "filtered=true" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Gefilterter Lauf::-k '$K' — dieser Lauf ist eine Sonde und fasst das Issue nicht an"
+          else
+            echo "filtered=false" >> "$GITHUB_OUTPUT"
+          fi
+          PYTHONPATH=src pytest "${args[@]}" 2>&1 | tee live-output.txt
           echo "pytest_exit=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
 
       - name: Ergebnis einordnen
@@ -249,7 +286,20 @@ jobs:
             echo "DIAGNOSE"
           } >> "$GITHUB_OUTPUT"
 
+      # EIN GEFILTERTER LAUF FASST DAS ISSUE NICHT AN
+      # ---------------------------------------------
+      # Weder öffnend noch schliessend, und das Schliessen ist der Grund.
+      # Läuft `-k test_live_bista_api_letzi` grün durch, sagt das nichts über
+      # die anderen vierzehn Tests — ein Issue, das daraufhin zugeht,
+      # behauptet einen Vergleich, den es nicht gab. Das ist dieselbe
+      # Klasse Aussage wie ein leeres Suchergebnis, das wie eine Antwort
+      # aussieht, nur eine Ebene höher: ein grüner Lauf, der wie eine Suite
+      # aussieht.
+      #
+      # Die Sonde ist damit sichtbar (roter Job, ::notice, Diagnose im Log)
+      # und folgenlos für den Zustand, den das Issue führt.
       - name: Issue öffnen, aktualisieren oder schliessen
+        if: steps.suite.outputs.filtered != 'true'
         uses: actions/github-script@v7
         # Über `env`, nicht über `${{ }}` im Skript: Die pytest-Ausgabe ist
         # fremder Text, der in einem JavaScript-Template-Literal landen würde.
