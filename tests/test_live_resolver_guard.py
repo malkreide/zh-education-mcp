@@ -23,8 +23,8 @@ import socket
 from types import SimpleNamespace
 
 import pytest
-
-from tests.conftest import pytest_runtest_call, resolver_is_stubbed
+from _resolver_guard import _REAL_GETADDRINFO, resolver_is_stubbed
+from conftest import pytest_runtest_call
 
 
 def _run_guard(keywords: dict[str, bool]) -> None:
@@ -83,6 +83,6 @@ def test_the_real_resolver_is_captured_before_anything_can_patch_it():
     schweigt für immer. Genau diese Falle steht im Kopf von `conftest.py` für
     `asyncio.sleep` beschrieben; sie gilt hier genauso.
     """
-    from tests import conftest
-
-    assert conftest._REAL_GETADDRINFO is socket.getaddrinfo
+    # Kein `import conftest` für diesen Wert: `_resolver_guard` ist die
+    # Stelle, an der er entsteht, und nur dort ist der Zeitpunkt garantiert.
+    assert _REAL_GETADDRINFO is socket.getaddrinfo

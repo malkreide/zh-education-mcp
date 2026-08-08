@@ -9,9 +9,9 @@ mockt, kostet sonst rund 14 Sekunden statt Millisekunden.
 from __future__ import annotations
 
 import asyncio
-import socket
 
 import pytest
+from _resolver_guard import resolver_is_stubbed
 
 from zh_education_mcp import http_client
 
@@ -48,12 +48,8 @@ _REAL_SLEEP = asyncio.sleep
 # Ein Live-Test gegen einen gestubbten Auflöser prüft nichts und behauptet
 # alles. Deshalb steht hier ein Wächter und nicht nur eine Korrektur: Die
 # Korrektur behebt den einen Fall, der Wächter den nächsten.
-_REAL_GETADDRINFO = socket.getaddrinfo
-
-
-def resolver_is_stubbed() -> bool:
-    """Ob irgendetwas den Namensauflöser dieses Prozesses ersetzt hat."""
-    return socket.getaddrinfo is not _REAL_GETADDRINFO
+# Festgehalten wird er in `_resolver_guard.py` — siehe dort, warum eigene
+# Datei und warum vor jeder Fixture.
 
 
 @pytest.hookimpl(wrapper=True)
