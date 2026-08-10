@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Behoben — ein Live-Test mass die Netzwerkstrecke statt des Retry-Verhaltens
+
+`test_live_a_dns_hiccup_costs_an_attempt_not_the_call` faelscht die erste
+DNS-Aufloesung und prueft danach, dass der Aufruf trotzdem echte Daten bringt.
+Die Zusicherung dazu lautete `assert calls["n"] == 2`.
+
+Diese Zahl gehoert uns nicht. Der Egress-Guard loest genau einmal je Request auf
+(`_resolve_and_validate`); ob DANACH noch einmal aufgeloest wird, entscheidet die
+Strecke. Waehlt httpx den Host selbst an, loest es ihn selbst auf — zwei
+Aufloesungen fuer den geglueckten Versuch. Terminiert ein Proxy die Verbindung,
+verbindet httpx zum Proxy und loest den Host nie auf — eine.
+
+Am 10.8.2026 fiel der Test auf dem GitHub-Runner mit `assert 3 == 2` und blieb
+hinter einem Proxy gruen. Gemessen hat er damit, ob ein Proxy im Weg steht, nicht
+was sein Name behauptet.
+
+Jetzt `>= 2`: nach dem Fehlschlag wurde ueberhaupt neu aufgeloest. Die eigentliche
+Zusage — «kostet einen Versuch, nicht den Aufruf» — steht unbeschaedigt zwei
+Zeilen weiter unten und war nie das Problem: `len(waited) == 1` pinnt genau einen
+Backoff, also genau einen zusaetzlichen Versuch, und das gilt auf jeder Strecke.
+
+Die uebrigen `calls["n"] == …` in derselben Datei bleiben exakt. Sie stehen unter
+`@respx.mock`, wo nichts verbindet und die Zahl deshalb deterministisch ist.
+
 ### Added
 
 - **Die gelesenen Feldnamen werden jetzt bestätigt, nicht nur normalisiert.**
