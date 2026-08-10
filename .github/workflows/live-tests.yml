@@ -127,22 +127,43 @@ jobs:
           else
             echo "filtered=false" >> "$GITHUB_OUTPUT"
           fi
-          PYTHONPATH=src pytest "${args[@]}" 2>&1 | tee live-output.txt
+          PYTHONPATH=src pytest "${args[@]}" --junitxml=live-report.xml 2>&1 | tee live-output.txt
           echo "pytest_exit=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
 
+      # WARUM DIE EINORDNUNG EIN SKRIPT IST UND KEIN `case`-BLOCK
+      # ---------------------------------------------------------
+      # Hier stand bis zum 10.8.2026 ein `case` über den Exit-Code von pytest,
+      # direkt in diesem YAML. Dieses Repo war das erste remediierte, und der
+      # Entwurf wurde danach an den drei Geschwistern fertig — `register-mcp`,
+      # `fedlex-mcp`, `swiss-transport-mcp` fahren seither
+      # `scripts/classify_live_run.py`. Diese Datei zieht nach.
+      #
+      # Zwei Dinge, die der `case`-Block nicht konnte, und beide sind im Lauf
+      # vom 10.8. sichtbar geworden:
+      #
+      # 1. Er setzte bei `finding` kein `reason`. Der Lauf druckte
+      #    «Live-Suite: finding» und eine leere Zeile — der Zustand ohne die
+      #    Auskunft, wozu.
+      # 2. Er ordnete nach dem EXIT-CODE ein, und pytest endet mit 0, wenn
+      #    jeder Test übersprungen wurde. Ein solcher Lauf hätte hier `clear`
+      #    gemeldet und ein offenes Issue geschlossen — mit einem Vergleich,
+      #    den es nie gab. Genau dieser Fall trat am selben Tag bei
+      #    `swiss-transport-mcp` ein (7 von 7 übersprungen, Exit 0), und er ist
+      #    der Grund, warum das Skript das JUnit-XML liest statt des Codes.
+      #
+      # Der dritte Grund ist der allgemeine: Diese Einordnung entscheidet, ob
+      # ein Issue auf- oder zugeht. Sie ist der einzige Teil dieses Workflows,
+      # der etwas behauptet — und in YAML kann sie niemand testen. Neben dem
+      # Skript liegt `tests/test_classify_live_run.py`.
       - name: Ergebnis einordnen
         id: verdict
         run: |
-          code="${{ steps.suite.outputs.pytest_exit }}"
-          case "$code" in
-            0) state=clear   ;;
-            1) state=finding ;;
-            5) state=unknown ; reason="pytest hat unter -m live NULL Tests eingesammelt — die Marke oder die Dateien haben sich bewegt, und ein Erfolg ohne Test ist kein Erfolg" ;;
-            *) state=unknown ; reason="pytest kam nicht bis zu einem Testergebnis (Exit $code)" ;;
-          esac
-          echo "state=$state" >> "$GITHUB_OUTPUT"
-          echo "reason=$reason" >> "$GITHUB_OUTPUT"
-          echo "::notice title=Live-Suite::$state (pytest exit $code)"
+          # Das Skript haengt `state` und `reason` selbst an $GITHUB_OUTPUT an;
+          # hier wird die Ausgabe nur mitgelesen, um den Zustand als ::notice
+          # in die Lauf-Zusammenfassung zu heben.
+          python scripts/classify_live_run.py live-report.xml \
+            --pytest-exit "${{ steps.suite.outputs.pytest_exit }}" | tee verdict.txt
+          echo "::notice title=Live-Suite::$(sed -n 's/^state=//p' verdict.txt)"
 
           # Die letzten Zeilen der Ausgabe wandern ins Issue. Ohne sie muss
           # jemand erst den Lauf öffnen, um zu sehen, WELCHER Test gefallen
