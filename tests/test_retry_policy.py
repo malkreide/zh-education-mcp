@@ -503,7 +503,24 @@ async def test_live_a_dns_hiccup_costs_an_attempt_not_the_call(monkeypatch):
 
     resp = await hc._http_get(URL)
 
-    assert calls["n"] == 2, "der zweite Versuch hat nicht neu aufgelöst"
+    # `>=`, nicht `==`, und das ist der Unterschied zwischen einer Zusage und
+    # einer Messung der Netzwerkstrecke.
+    #
+    # Der Egress-Guard löst genau einmal je Request auf (`_resolve_and_validate`).
+    # Ob DANACH noch einmal aufgelöst wird, gehört nicht uns: Wählt httpx den
+    # Host selbst an, löst es ihn selbst auf; terminiert ein Proxy die
+    # Verbindung, verbindet httpx zum Proxy und löst den Host nie auf. Der
+    # zweite Versuch kostet also je nach Strecke eine oder zwei Auflösungen.
+    #
+    # Am 10.8.2026 fiel dieser Test auf dem GitHub-Runner mit `assert 3 == 2`,
+    # während er hinter einem Proxy gruen blieb. Gemessen hat er damit, ob ein
+    # Proxy im Weg steht — nicht, was sein Name behauptet.
+    #
+    # Die Zusage im Namen ist «kostet einen Versuch, nicht den Aufruf», und die
+    # steht unbeschädigt weiter unten: `len(waited) == 1` pinnt GENAU EINEN
+    # Backoff, also genau einen zusätzlichen Versuch. Hier gehört nur, dass
+    # nach dem Fehlschlag ueberhaupt neu aufgelöst wurde.
+    assert calls["n"] >= 2, "der zweite Versuch hat nicht neu aufgelöst"
     assert resp.status_code == 200
     # Kein Feldname wird hier gepinnt: BISTA hat die Schreibweise der Kopfzeile
     # schon gewechselt (siehe ``_normalise_keys``). Geprüft wird, dass eine
