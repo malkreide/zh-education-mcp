@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Geändert — die Live-Suite wird nicht mehr am Exit-Code eingeordnet
+
+Der wöchentliche Live-Lauf entschied bisher in einem `case`-Block direkt im
+Workflow, ob ein Issue auf- oder zugeht. Grundlage war der Exit-Code von pytest.
+Dieses Repo war das erste remediierte; der Entwurf wurde danach an
+`register-mcp`, `fedlex-mcp` und `swiss-transport-mcp` fertig, die seither
+`scripts/classify_live_run.py` fahren. Diese Datei zieht nach — dasselbe Skript,
+dieselben Tests, byte-gleich.
+
+Zwei Lücken hatte der `case`-Block, beide am 10.8.2026 sichtbar geworden:
+
+- Bei `finding` setzte er kein `reason`. Der Lauf meldete «Live-Suite: finding»
+  und darunter eine leere Zeile: der Zustand ohne die Auskunft, wozu.
+- Er ordnete nach dem Exit-Code ein, und pytest endet mit 0, wenn **jeder** Test
+  übersprungen wurde. Ein solcher Lauf hätte hier `clear` gemeldet und ein
+  offenes Issue geschlossen — mit einem Vergleich, den es nie gab. Genau dieser
+  Fall trat am selben Tag bei `swiss-transport-mcp` ein: 7 von 7 übersprungen,
+  Exit 0. Deshalb liest das Skript das JUnit-XML (`--junitxml=live-report.xml`)
+  und nicht den Code; `tests - skipped == 0` ist `unknown`, nicht `clear`.
+
+Der dritte Grund ist der allgemeine: Diese Einordnung ist der einzige Teil des
+Workflows, der etwas behauptet — und in YAML kann sie niemand testen. Neben dem
+Skript liegt jetzt `tests/test_classify_live_run.py` (13 Fälle).
+
 ### Behoben — ein Live-Test mass die Netzwerkstrecke statt des Retry-Verhaltens
 
 `test_live_a_dns_hiccup_costs_an_attempt_not_the_call` faelscht die erste
