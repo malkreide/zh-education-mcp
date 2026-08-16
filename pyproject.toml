@@ -55,7 +55,13 @@ dev = [
     # `ruff==0.16.1` in `ci.yml` — und CI meldet einen Formatfehler an Code, den
     # niemand angefasst hat. Genau das ist am 3. August passiert.
     # Beim Anheben: diese Grenze und den Pin in `ci.yml` gemeinsam bewegen.
-    "ruff>=0.16,<0.17",
+    # Exakt gepinnt, nicht `>=`: ruff ist ein Gate, kein Hilfsmittel. Eine
+    # neuere Version meldet Abweichungen an Code, den niemand angefasst hat.
+    # Der Pin steht hier und nur hier — die CI installiert ihn ueber das
+    # `dev`-Extra mit und hat keinen eigenen Pin-Schritt mehr. Beim Anheben:
+    # Version aendern, `ruff format` einmal ueber die gelinteten Pfade laufen
+    # lassen und das Ergebnis mit committen.
+    "ruff==0.16.1",
 ]
 # Optionales OpenTelemetry-Tracing (OBS-006). Aktivierung via MCP_OTEL_ENABLED=true.
 otel = [
