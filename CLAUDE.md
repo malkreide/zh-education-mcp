@@ -74,6 +74,19 @@ ruff format --check src/ tests/ scripts/
 python scripts/check_version_sync.py
 ```
 
+**Alle vier laufen in einem Job auf allen drei Versionen.** Keine
+`if: matrix.python-version`-Ausnahme — ein grünes 3.13 heisst hier wirklich,
+dass alles auf 3.13 lief. (Im Portfolio nicht selbstverständlich:
+`swiss-food-safety-mcp` gated zwei Gates auf 3.11.) Kein `fail-fast: false`:
+Eine rote 3.11 bricht 3.12 und 3.13 ab, bevor sie etwas sagen.
+
+**Ein vierter Workflow ist kein Gate, sondern ein Werkzeug.**
+`.github/workflows/tls-probe.yml` («TLS-Import-Sonde») läuft **nur** auf
+`workflow_dispatch` und fährt `scripts/tls_import_probe.py` gegen eine
+wählbare URL. Er taucht auf keinem PR auf und soll das auch nicht — er ist
+da, wenn ein Verdacht auf ein TLS- oder Import-Problem gegen die Quelle
+besteht. Wer ihn nicht kennt, baut sich die Sonde von Hand nach.
+
 **Live-Tests: geplanter Workflow vorhanden.** `.github/workflows/live-tests.yml`,
 `cron: "23 5 * * 1"` plus `workflow_dispatch`. Die Live-Suite ist also nicht bloss
 per `-m "not live"` ausgeschlossen — DRIFT-005 ist hier erfüllt. `schedule`
