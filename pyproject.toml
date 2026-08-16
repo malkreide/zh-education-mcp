@@ -49,17 +49,23 @@ dev = [
     "pytest-asyncio>=0.23.0",
     "pytest-cov>=5.0.0",
     "respx>=0.21.0",
-    # Exakt gepinnt, identisch zum Pin in `ci.yml`. Der Bereich, der hier
-    # vorher stand, hatte den richtigen Grund — ohne Grenze installiert ein
-    # frischer Klon die jeweils neuste Version, formatiert anders als die CI,
-    # und CI meldet einen Formatfehler an Code, den niemand angefasst hat.
-    # Genau das ist am 3. August passiert.
+    # Exakt gepinnt, nicht `>=`: ruff ist ein Gate, kein Hilfsmittel. Der Pin
+    # steht hier und nur hier — die CI installiert ihn ueber das `dev`-Extra
+    # mit und hat keinen eigenen Pin-Schritt mehr.
     #
-    # `>=0.16,<0.17` liess diese Luecke aber offen: Auch innerhalb von 0.16.x
-    # gibt es mehr als eine Version — 0.16.2 existiert bereits — und der
-    # Formatierer muss zwischen ihnen nicht gleich entscheiden. Nur `==`
-    # schliesst sie. Beim Anheben: diese Zeile und den Pin in `ci.yml`
-    # gemeinsam bewegen.
+    # Vorher stand hier `>=0.16,<0.17`. Die Obergrenze hatte den richtigen
+    # Grund: Ohne sie installiert ein frischer Klon die jeweils neuste Version
+    # und formatiert anders als das Gate — CI meldet dann einen Formatfehler an
+    # Code, den niemand angefasst hat. Genau das ist am 3. August passiert.
+    #
+    # Sie reichte nur nicht. Auch innerhalb von 0.16.x gibt es mehr als eine
+    # Version — 0.16.2 existiert bereits — und der Formatierer muss zwischen
+    # ihnen nicht gleich entscheiden. Der Bereich schuetzt gegen den
+    # Minor-Sprung, nicht gegen den Fall, der ihn ausgeloest hat. Nur `==`
+    # schliesst beides.
+    #
+    # Beim Anheben: Version aendern, `ruff format` einmal ueber die gelinteten
+    # Pfade laufen lassen und das Ergebnis mit committen.
     "ruff==0.16.1",
 ]
 # Optionales OpenTelemetry-Tracing (OBS-006). Aktivierung via MCP_OTEL_ENABLED=true.
