@@ -78,7 +78,13 @@ ruff format --check src/ tests/ scripts/
 python scripts/check_version_sync.py
 ```
 
-**Alle vier laufen in einem Job auf allen drei Versionen.** Keine
+Die fünf Zeilen sind der lokale Lauf. `CONTRIBUTING.md` und
+`CONTRIBUTING.de.md` nennen unter «Code-Stil» nur `ruff check src/` und
+`ruff format src/` — enger als das Gate (`tests/` und `scripts/` fehlen) und
+ohne `--check`, formatiert also, statt zu prüfen. Wer danach geht, ist lokal
+grün und in der CI rot.
+
+**Alle fünf laufen in einem Job auf allen drei Versionen.** Keine
 `if: matrix.python-version`-Ausnahme — ein grünes 3.13 heisst hier wirklich,
 dass alles auf 3.13 lief. (Im Portfolio nicht selbstverständlich:
 `swiss-food-safety-mcp` gated zwei Gates auf 3.11.) Kein `fail-fast: false`:
@@ -90,6 +96,12 @@ Eine rote 3.11 bricht 3.12 und 3.13 ab, bevor sie etwas sagen.
 wählbare URL. Er taucht auf keinem PR auf und soll das auch nicht — er ist
 da, wenn ein Verdacht auf ein TLS- oder Import-Problem gegen die Quelle
 besteht. Wer ihn nicht kennt, baut sich die Sonde von Hand nach.
+
+**Ein Gate, das kein PR sieht.** `.github/workflows/publish.yml` fährt auf
+`release: published` `scripts/check_release_artifacts.py` gegen die gebauten
+Artefakte: `mcp-name`-Marker in der Wheel-METADATA, `server.json` description
+≤ 100 Zeichen, Tag ↔ gebaute Version. Es fällt erst beim Release — und eine
+PyPI-Version ist dann unveränderlich, der Fix kostet einen Versionssprung.
 
 **Live-Tests: geplanter Workflow vorhanden.** `.github/workflows/live-tests.yml`,
 `cron: "23 5 * * 1"` plus `workflow_dispatch`. Die Live-Suite ist also nicht bloss
