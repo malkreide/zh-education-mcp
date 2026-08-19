@@ -57,6 +57,16 @@ Merge-Konflikt: GitHub berechnet dafür keinen Merge-Commit und startet nichts.
 
 Ein Codex-Review auf einem PR wird beantwortet oder behoben, nie ignoriert.
 
+Nicht jede Fehlmeldung ist rot. `git push origin --delete <branch>` scheitert in
+der Claude-Code-Umgebung am Agent-Proxy und schliesst mit «Everything
+up-to-date» — die Meldung, die es sonst gibt, wenn nichts zu tun war. Der Grund
+wird erst mit expliziter Refspec sichtbar: `git push origin :refs/heads/<branch>`
+liefert `HTTP 403`, die GitHub-API dazu «Write access to this GitHub API path is
+not permitted through this proxy». Gesperrt sind löschende Operationen, nicht
+gewöhnliche Pushes. Also nicht mit Backoff wiederholen — es ist kein Netzproblem
+— sondern lokal oder über die GitHub-Oberfläche löschen. Am 19.8.2026 gemessen:
+fünf Versuche, fünfmal dieselbe 403.
+
 ## Teil 2 — Dieses Repo
 
 
