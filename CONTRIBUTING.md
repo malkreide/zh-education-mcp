@@ -47,10 +47,21 @@ pull request red.
 
 ## Code Style
 
+Verbatim from `ci.yml` — same paths, same flags:
+
 ```bash
-python -m ruff check src/
-python -m ruff format src/
+ruff check src/ tests/ scripts/
+ruff format --check src/ tests/ scripts/
 ```
+
+`tests/` and `scripts/` are gated too, so linting `src/` alone lets CI go red on
+files you never checked. Drop `--check` to apply the formatting instead of
+verifying it.
+
+`ruff` is pinned in `pyproject.toml` (`dev` extra), and the `pip install -e
+".[dev]"` above installs exactly that version. A different `ruff` earlier in your
+`PATH` beats the pin without the install saying a word — `python
+scripts/check_ruff_pin.py` checks both call paths and runs in CI as well.
 
 ## Data Sources
 

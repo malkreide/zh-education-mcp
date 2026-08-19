@@ -79,10 +79,10 @@ python scripts/check_version_sync.py
 ```
 
 Die fünf Zeilen sind der lokale Lauf. `CONTRIBUTING.md` und
-`CONTRIBUTING.de.md` nennen unter «Code-Stil» nur `ruff check src/` und
-`ruff format src/` — enger als das Gate (`tests/` und `scripts/` fehlen) und
-ohne `--check`, formatiert also, statt zu prüfen. Wer danach geht, ist lokal
-grün und in der CI rot.
+`CONTRIBUTING.de.md` nennen unter «Code-Stil» dieselben ruff-Pfade und -Flags —
+wer das Gate ändert, ändert beide Dateien mit. Sie standen schon einmal
+auseinander: `ruff check src/` ohne `tests/` und `scripts/`, `format` ohne
+`--check`. Wer danach ging, war lokal grün und in der CI rot.
 
 **Alle fünf laufen in einem Job auf allen drei Versionen.** Keine
 `if: matrix.python-version`-Ausnahme — ein grünes 3.13 heisst hier wirklich,
