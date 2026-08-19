@@ -84,3 +84,19 @@ This server uses the BISTA public API (`bista.zh.ch/basicapi/ogd/`) — no authe
 2. Create a branch: `git checkout -b feat/your-feature`
 3. Commit: `git commit -m "feat: add xyz tool"`
 4. Push and open a Pull Request
+
+## Releases
+
+Publishing is not part of a pull request: a GitHub release triggers
+[`publish.yml`](.github/workflows/publish.yml), which gates the built artifacts
+before the PyPI upload. What it checks and why it sits ahead of the upload is in
+[Release](README.md#release).
+
+Two consequences for contributors:
+
+- Leave the `mcp-name:` comment at the bottom of `README.md` alone. It ships as
+  the package description, and the gate demands exactly one — removing it or
+  writing a second one anywhere in that file breaks the release.
+- Versions live in `pyproject.toml`, `server.json` and the README badges.
+  [`check_version_sync.py`](scripts/check_version_sync.py) compares them on every
+  pull request, so change them together.

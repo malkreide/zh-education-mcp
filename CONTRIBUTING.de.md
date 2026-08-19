@@ -86,3 +86,20 @@ Dieser Server nutzt die öffentliche BISTA-API (`bista.zh.ch/basicapi/ogd/`) —
 2. Branch erstellen: `git checkout -b feat/dein-feature`
 3. Commit: `git commit -m "feat: add xyz tool"`
 4. Pushen und einen Pull Request öffnen
+
+## Releases
+
+Publiziert wird nicht über einen Pull Request: Ein GitHub-Release stösst
+[`publish.yml`](.github/workflows/publish.yml) an, das die gebauten Artefakte vor
+dem PyPI-Upload prüft. Was es prüft und warum es vor dem Upload steht, steht
+unter [Release](README.de.md#release).
+
+Zwei Folgen für Beitragende:
+
+- Den `mcp-name:`-Kommentar am Ende von `README.md` unangetastet lassen. Er wird
+  als Paket-Beschreibung ausgeliefert, und das Gate verlangt genau einen — ihn zu
+  entfernen oder irgendwo in dieser Datei einen zweiten zu schreiben, bringt das
+  Release zu Fall.
+- Versionen stehen in `pyproject.toml`, `server.json` und den README-Badges.
+  [`check_version_sync.py`](scripts/check_version_sync.py) vergleicht sie auf
+  jedem Pull Request — also gemeinsam ändern.
