@@ -274,6 +274,34 @@ erhalten monatliche Update-PRs via Dependabot (`.github/dependabot.yml`).
 
 ---
 
+## Release
+
+Publiziert wird über ein GitHub-Release (`release: published` →
+[`publish.yml`](.github/workflows/publish.yml)): Build → Gate → PyPI → MCP-Registry.
+
+Das Gate ([`check_release_artifacts.py`](scripts/check_release_artifacts.py)) läuft
+**vor** dem Upload und prüft das gebaute Wheel, nicht die Quelldateien:
+
+- genau ein `mcp-name:`-Marker (ein HTML-Kommentar, siehe unten in `README.md`)
+  in der Wheel-METADATA — damit belegt die MCP-Registry die PyPI-Ownership —
+  passend zum `name` in `server.json`
+- `server.json` `description` höchstens 100 Zeichen; die Registry antwortet sonst
+  mit `422`, und zwar erst *nachdem* der PyPI-Upload bereits durch ist
+- `server.json`-Version gleich `pyproject.toml`-Version, und der Git-Tag gleich
+  der tatsächlich gebauten Version
+
+Es steht vor dem Upload, weil dahinter nichts mehr korrigierbar ist: Eine
+PyPI-Version ist unveränderlich, der Fix kostet einen Versionssprung.
+
+**Wer diese README bearbeitet:** Der Marker ganz unten in `README.md` wird als
+Teil der Paket-Beschreibung ausgeliefert (`readme = "README.md"` in
+`pyproject.toml`); wer ihn entfernt, bringt das Gate zu Fall. `README.de.md`
+trägt keinen Marker und wird nicht publiziert. Der Versions-Badge oben wird auf
+jedem Pull Request von [`check_version_sync.py`](scripts/check_version_sync.py)
+gegen `pyproject.toml` und `server.json` geprüft.
+
+---
+
 ## Changelog
 
 Siehe [CHANGELOG.md](CHANGELOG.md)

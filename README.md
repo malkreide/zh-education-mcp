@@ -284,6 +284,34 @@ update PRs via Dependabot (`.github/dependabot.yml`).
 
 ---
 
+## Release
+
+Publishing is driven by a GitHub release (`release: published` →
+[`publish.yml`](.github/workflows/publish.yml)): build → gate → PyPI → MCP Registry.
+
+The gate ([`check_release_artifacts.py`](scripts/check_release_artifacts.py)) runs
+**before** the upload and inspects the built wheel, not the sources:
+
+- exactly one `mcp-name:` marker (an HTML comment, see the bottom of this file)
+  in the wheel METADATA — the MCP Registry proves PyPI ownership with it — and it
+  must match `server.json` `name`
+- `server.json` `description` at most 100 characters; the Registry answers `422`,
+  and only *after* the PyPI upload has already succeeded
+- `server.json` version equal to `pyproject.toml` version, and the git tag equal
+  to the version actually built
+
+It sits ahead of the upload because nothing is correctable behind it: a PyPI
+version is immutable, so a fix costs a version bump.
+
+**If you edit this README:** the marker at the very bottom is shipped as part of
+the package description (`readme = "README.md"` in `pyproject.toml`), and removing
+it fails the gate. `README.de.md` carries no marker and is not published. The
+version badge above is checked on every pull request by
+[`check_version_sync.py`](scripts/check_version_sync.py) against `pyproject.toml`
+and `server.json`.
+
+---
+
 ## Changelog
 
 See [CHANGELOG.md](CHANGELOG.md)
