@@ -99,9 +99,9 @@ besteht. Wer ihn nicht kennt, baut sich die Sonde von Hand nach.
 
 **Ein Gate, das kein PR sieht.** `.github/workflows/publish.yml` fährt auf
 `release: published` `scripts/check_release_artifacts.py` gegen die gebauten
-Artefakte: `mcp-name`-Marker in der Wheel-METADATA, `server.json` description
-≤ 100 Zeichen, Tag ↔ gebaute Version. Es fällt erst beim Release — und eine
-PyPI-Version ist dann unveränderlich, der Fix kostet einen Versionssprung.
+Artefakte. Was es prüft, steht im Release-Abschnitt der README; hier nur der
+Grund, es ernst zu nehmen: Es fällt erst beim Release, und eine PyPI-Version
+ist dann unveränderlich.
 
 **Live-Tests: geplanter Workflow vorhanden.** `.github/workflows/live-tests.yml`,
 `cron: "23 5 * * 1"` plus `workflow_dispatch`. Die Live-Suite ist also nicht bloss
