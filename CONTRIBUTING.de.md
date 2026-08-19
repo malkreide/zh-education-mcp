@@ -49,10 +49,21 @@ Request rot machen.
 
 ## Code-Stil
 
+Wörtlich aus `ci.yml` — dieselben Pfade, dieselben Flags:
+
 ```bash
-python -m ruff check src/
-python -m ruff format src/
+ruff check src/ tests/ scripts/
+ruff format --check src/ tests/ scripts/
 ```
+
+`tests/` und `scripts/` sind mitgegatet; wer nur `src/` lintet, lässt die CI an
+Dateien rot werden, die er nie geprüft hat. Ohne `--check` formatiert `ruff
+format`, statt zu prüfen.
+
+`ruff` ist in `pyproject.toml` (`dev`-Extra) gepinnt, `pip install -e ".[dev]"`
+oben installiert genau diese Version. Ein anderes `ruff` früher im `PATH`
+schlägt den Pin, ohne dass der Install etwas meldet — `python
+scripts/check_ruff_pin.py` prüft beide Aufrufwege und läuft auch in der CI.
 
 ## Datenquellen
 
