@@ -24,6 +24,30 @@ from zh_education_mcp.constants import (
 
 URL = f"{BISTA_API}/data_uebersicht_alle_lernende"
 
+# Wanduhr-Zahlen fuer die beiden Deadline-Tests weiter unten, weit genug
+# auseinander, dass Scheduler-Jitter das Ergebnis nicht mehr kippen kann.
+# Gemessen auf 3.11 ueber je 10 Laeufe des Test-Rumpfs selbst, durch pytest,
+# damit jede Fixture steht: 0.121-0.146s gegen ein Budget von 0.05s, davon
+# rund 0.076s Aufbau — mehr als das Budget. Beide Tests massen also
+# ueberwiegend Aufbau und nicht Deadline. Die alten Schranken liessen 0.274s
+# (Aufloeser) und 0.375s (langsame Antwort) absoluten Spielraum, und CI-Jitter
+# ist absolut, nicht proportional: In swiss-efv-mcp machte ein belasteter
+# Runner am 21.08.2026 aus 0.105s ganze 0.55s und riss dieselbe Zusicherung.
+# Ein groesseres Budget verkuerzt diesen Stillstand nicht, es macht ihn klein
+# *gegenueber* dem, was gemessen wird.
+_BUDGET = 0.5
+_CUT_BY = 2.5
+_SLOW_RESPONSE = 8.0
+# Der Aufloeser haengt kuerzer als _SLOW_RESPONSE, und das ist kein Versehen:
+# Er blockiert einen echten Thread im Executor, den der Interpreter beim
+# Beenden joint. Die Deadline schneidet den Test bei 0.5s, der Thread schlaeft
+# aber weiter — gemessen kostete ein Wert von 8.0s den ganzen pytest-Prozess
+# 8.8s statt 1.3s. 3.0s laesst zwischen «geschnitten» (0.5s) und «gar nicht
+# geschnitten» reichlich Abstand und deckelt diesen Preis bei rund 2.5s. Die
+# langsame Antwort hat das Problem nicht: Sie schlaeft im Event-Loop und wird
+# beim Schnitt abgebrochen.
+_HANG = 3.0
+
 # Den echten Auflöser festhalten, bevor irgendeine Fixture ihn ersetzt — sonst
 # griffe der Live-Test unten die bereits gepatchte Fassung und liefe still
 # gegen 8.8.8.8 statt gegen echtes DNS. Dieselbe Falle wie bei ``_REAL_SLEEP``
@@ -250,20 +274,37 @@ async def test_a_hanging_resolver_is_cut_by_the_wall_clock_deadline(monkeypatch)
     Deshalb löst der Guard im Thread-Pool auf; dieser Test misst echte Zeit,
     denn eine Uhr, die nur beim Schlafen vorrückt, kann eine Blockade nicht
     bemerken.
+
+    Die Spannen sind absichtlich weit — die Messung dahinter steht bei
+    ``_BUDGET`` oben. Der Aufbau faellt vor dem Start der Uhr an, damit das
+    gemessene Fenster die Deadline traegt und sonst nichts.
     """
-    monkeypatch.setattr(hc, "RETRY_TOTAL_BUDGET", 0.05)
+    # Aufwaermen mit einem antwortenden Aufloeser und dem unangetasteten
+    # Standardbudget, bevor beides unten ersetzt wird: zahlt den Aufbau
+    # ausserhalb des gemessenen Fensters.
+    _patch_resolver(monkeypatch, lambda host, port, *a, **k: _addrinfo("8.8.8.8", port))
+    respx.get(URL).mock(return_value=httpx.Response(200, text="warm"))
+    await hc._http_get(URL)
+
+    monkeypatch.setattr(hc, "RETRY_TOTAL_BUDGET", _BUDGET)
 
     def hanging(host, port, *a, **k):
-        time.sleep(0.6)  # echt blockierend, wie ein toter Resolver
+        time.sleep(_HANG)  # echt blockierend, wie ein toter Resolver
         return _addrinfo("8.8.8.8", port)
 
     _patch_resolver(monkeypatch, hanging)
-    respx.get(URL).mock(return_value=httpx.Response(200, text="zu spät"))
     started = time.monotonic()
     with pytest.raises(TimeoutError):
         await hc._http_get(URL)
     elapsed = time.monotonic() - started
-    assert elapsed < 0.4, f"der Auflöser hat den Event-Loop blockiert: {elapsed:.2f}s"
+
+    # Absichtlich zweiseitig. Die obere Schranke ist die Zusicherung: Die
+    # Blockade wurde geschnitten, der Aufloeser lief also nicht im Event-Loop.
+    # Die untere sagt, dass der Schnitt vom Budget kam und nicht davon, dass
+    # etwas sofort scheiterte — eine falsch gerechnete Deadline segelt durch
+    # eine obere Schranke allein hindurch.
+    assert elapsed >= _BUDGET / 2, f"zu frueh geschnitten fuer das Budget: {elapsed:.3f}s"
+    assert elapsed < _CUT_BY, f"der Auflöser hat den Event-Loop blockiert: {elapsed:.2f}s"
 
 
 # --- Wie liest der Aufrufer das ---------------------------------------------
@@ -405,19 +446,35 @@ async def test_a_slow_response_is_cut_by_the_wall_clock_deadline(monkeypatch, re
     Bewusst mit der *echten* ``asyncio.sleep``: Eine Zusicherung über echte Zeit
     kann eine Uhr, die nur beim Schlafen vorrückt, nicht widerlegen — genau
     dieser blinde Fleck liess den Fehler in den Geschwister-Servern durch.
+
+    Die Spannen sind absichtlich weit — die Messung dahinter steht bei
+    ``_BUDGET`` oben. Der Aufbau faellt vor dem Start der Uhr an, damit das
+    gemessene Fenster die Deadline traegt und sonst nichts.
     """
-    monkeypatch.setattr(hc, "RETRY_TOTAL_BUDGET", 0.05)
+    # Aufwaermen auf dem unangetasteten Standardbudget, bevor es unten verengt
+    # wird: zahlt den Aufbau ausserhalb des gemessenen Fensters.
+    route = respx.get(URL).mock(return_value=httpx.Response(200, text="warm"))
+    await hc._http_get(URL)
+
+    monkeypatch.setattr(hc, "RETRY_TOTAL_BUDGET", _BUDGET)
 
     async def _slow(request):
-        await real_sleep(1.0)
+        await real_sleep(_SLOW_RESPONSE)
         return httpx.Response(200, text="zu spät")
 
-    respx.get(URL).mock(side_effect=_slow)
+    route.mock(side_effect=_slow)
     started = time.monotonic()
     with pytest.raises(TimeoutError):
         await hc._http_get(URL)
     elapsed = time.monotonic() - started
-    assert elapsed < 0.5, f"Deadline hat nicht geschnitten: {elapsed:.2f}s"
+
+    # Absichtlich zweiseitig. Die obere Schranke ist die Zusicherung: Eine
+    # Antwort, die _SLOW_RESPONSE gebraucht haette, wurde geschnitten. Die
+    # untere sagt, dass der Schnitt vom Budget kam und nicht davon, dass etwas
+    # sofort scheiterte — eine falsch gerechnete Deadline segelt durch eine
+    # obere Schranke allein hindurch.
+    assert elapsed >= _BUDGET / 2, f"zu frueh geschnitten fuer das Budget: {elapsed:.3f}s"
+    assert elapsed < _CUT_BY, f"Deadline hat nicht geschnitten: {elapsed:.2f}s"
 
 
 async def test_an_exhausted_budget_reads_as_a_timeout_not_an_internal_error():
