@@ -23,6 +23,10 @@ Ein veralteter Klon erzeugt eine rote CI, deren Ursache nicht im Diff steht.
 Am 3.8.2026 zweimal passiert — beide Male fehlten genau die Commits, die
 das Gate einführten, an dem der Branch scheiterte.
 
+In diesem Repo nimmt ein SessionStart-Hook diese Prüfung ab (Teil 2). Er meldet
+nur den Rückstand; eingespielt wird weiterhin von Hand, und der Befehl oben
+bleibt die Fassung für alle anderen Server im Portfolio.
+
 Gates lokal fahren, mit der GEPINNTEN ruff-Version aus der CI. Eine andere
 Version meldet Abweichungen, die niemand verursacht hat.
 
@@ -112,6 +116,31 @@ besteht. Wer ihn nicht kennt, baut sich die Sonde von Hand nach.
 Artefakte. Was es prüft, steht im Release-Abschnitt der README; hier nur der
 Grund, es ernst zu nehmen: Es fällt erst beim Release, und eine PyPI-Version
 ist dann unveränderlich.
+
+**Ein Hook prüft die Klon-Aktualität beim Sessionstart.**
+`.claude/hooks/session-start.sh`, registriert in `.claude/settings.json` unter
+`hooks.SessionStart`. Er meldet, wie viele Commits der ausgecheckte Stand hinter
+`origin/<Default-Branch>` liegt, und schweigt bei 0. Abschalten: `ZH_STALE_CHECK=0`.
+
+Vier Zusicherungen, nach Wichtigkeit: Er blockiert die Session nie — kein
+`set -e`, sondern `trap 'exit 0' EXIT`, damit auch ein unvorhergesehener Fehler
+mit 0 endet. Kurzes Timeout je Netzaufruf (zwei Stück, Default je 5s), dazu
+abgeschaltete interaktive Rückfragen von git, ssh und credential-helper — ein
+Passwort-Prompt ist der eine Hänger, den `timeout(1)` nicht abräumt. Ausgabe nur
+bei echtem Rückstand. Default-Branch ermittelt statt geraten; ist er nicht
+ermittelbar, schweigt der Hook, statt auf `main` zu fallen.
+
+Zwei am 21.8.2026 in der Agent-Umgebung gemessene Eigenheiten bestimmen den
+Aufbau: Der Klon ist dort **flach** (`--is-shallow-repository` = `true`), und
+`refs/remotes/origin/HEAD` ist **nicht gesetzt**. Darum ist `ls-remote --symref`
+die Primärquelle und der lokale Zeiger nur Fallback — wer sich allein auf ihn
+verlässt, meldet nie etwas. Und darum steht vor der Zählung ein `git merge-base`:
+Ohne gemeinsamen Vorfahr zählt `HEAD..FETCH_HEAD` den halben Remote-Ast statt
+einen Rückstand, und eine erfundene Zahl ist schlechter als keine.
+
+Gegenprobe in `tests/test_session_start_hook.py` — 16 Tests gegen echte
+Wegwerf-Repos über `file://`, ohne Netz, im Gate mitlaufend. Wer den Hook
+ändert, fährt sie mit. Der Rest steht in `.claude/hooks/README.md`.
 
 **Live-Tests: geplanter Workflow vorhanden.** `.github/workflows/live-tests.yml`,
 `cron: "23 5 * * 1"` plus `workflow_dispatch`. Die Live-Suite ist also nicht bloss
