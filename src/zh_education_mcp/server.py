@@ -203,16 +203,25 @@ def build_transport_security(host: str, port: int):
     )
 
 
-def _run_http(transport: str, host: str, port: int) -> None:
-    """Startet einen HTTP-Transport mit CORS-Middleware (SDK-004).
+# Die Header, nach denen Spec 2026-07-28 eine Anfrage routet — in der
+# Schreibweise des SDK (`mcp.shared.inbound`). Ein Browser darf einen nicht
+# safelisteten Header gar nicht erst senden, wenn der Server ihn nicht in
+# `Access-Control-Allow-Headers` nennt: ohne sie stirbt jede Cross-Origin-
+# Anfrage am Preflight, vor dem ersten MCP-Byte. stdio- und Python-Clients
+# kennen keinen Preflight und merken davon nichts — deshalb fiel es nicht auf.
+CORS_ROUTING_HEADERS = ["Mcp-Method", "Mcp-Name", "Mcp-Protocol-Version"]
 
-    Die Starlette-App wird um ``CORSMiddleware`` gewickelt, die ``Mcp-Session-Id``
-    explizit exponiert und akzeptiert (sonst brechen Browser-Clients wie claude.ai).
-    Origins kommen aus ``MCP_CORS_ORIGINS`` — keine Wildcard in Produktion.
+
+def build_http_app(transport: str, host: str = "127.0.0.1", port: int = 8000):
+    """Baut die HTTP-App samt CORS, ohne einen Socket zu binden.
+
+    Herausgezogen aus `_run_http`, damit die CORS-Schicht pruefbar ist: solange
+    Aufbau und `uvicorn.run` in derselben Funktion standen, liess sich die
+    Freigabeliste nur lesen, nicht ausprobieren — und eine gelesene Liste kann
+    vollstaendig aussehen und trotzdem nie an der Middleware ankommen.
     """
     import logging
 
-    import uvicorn
     from starlette.middleware.cors import CORSMiddleware
 
     security = build_transport_security(host, port)
@@ -246,11 +255,24 @@ def _run_http(transport: str, host: str, port: int) -> None:
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,
         allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
-        allow_headers=["Content-Type", "Authorization", "Mcp-Session-Id", "Last-Event-ID"],
+        allow_headers=[
+            "Content-Type",
+            "Authorization",
+            *CORS_ROUTING_HEADERS,
+            "Mcp-Session-Id",
+            "Last-Event-ID",
+        ],
         expose_headers=["Mcp-Session-Id"],
         max_age=86_400,
     )
-    uvicorn.run(app, host=host, port=port, log_level="info")
+    return app
+
+
+def _run_http(transport: str, host: str, port: int) -> None:
+    """Startet einen HTTP-Transport mit der oben gebauten App."""
+    import uvicorn
+
+    uvicorn.run(build_http_app(transport, host, port), host=host, port=port, log_level="info")
 
 
 if __name__ == "__main__":
