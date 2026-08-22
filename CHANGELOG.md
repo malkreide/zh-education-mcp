@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Behoben
+
+- **Browser-Clients scheiterten am Preflight.** Spec `2026-07-28` routet eine
+  Streamable-HTTP-Anfrage über `Mcp-Method`, `Mcp-Name` und
+  `Mcp-Protocol-Version`; die CORS-Freigabeliste nannte keinen davon, dafür mit
+  `Mcp-Session-Id` den Header genau der Session-Mechanik, die dieselbe Revision
+  abgeschafft hat. Ein Browser darf einen nicht safelisteten Header nicht
+  senden, wenn der Server ihn nicht nennt: die Anfrage starb vor dem ersten
+  MCP-Byte, während stdio und Python, für die kein Preflight gilt, weiterliefen.
+
+### Added
+
+- **`build_http_app()`**, herausgezogen aus `_run_http`. Solange Aufbau und
+  `uvicorn.run` in derselben Funktion standen, liess sich die CORS-Schicht nur
+  lesen, nicht ausprobieren. `_run_http` ruft die neue Funktion auf; am
+  Verhalten ändert sich nichts.
+
+- **Frischehinweise auf den auflistenden Methoden** (SEP-2549, Spec
+  `2026-07-28`): `tools/list`, `resources/list`, `resources/templates/list` und
+  `server/discover` antworten mit `ttlMs` 300000 und `cacheScope` `public`.
+  `resources/read` bleibt ohne Hinweis: das wäre eine Zusicherung über den
+  Inhalt statt über das Verzeichnis.
+
 ### Geändert — die Live-Suite wird nicht mehr am Exit-Code eingeordnet
 
 Der wöchentliche Live-Lauf entschied bisher in einem `case`-Block direkt im
