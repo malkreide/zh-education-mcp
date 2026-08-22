@@ -66,7 +66,7 @@ dev = [
     #
     # Beim Anheben: Version aendern, `ruff format` einmal ueber die gelinteten
     # Pfade laufen lassen und das Ergebnis mit committen.
-    "ruff==0.16.1",
+    "ruff==0.16.3",
 ]
 # Optionales OpenTelemetry-Tracing (OBS-006). Aktivierung via MCP_OTEL_ENABLED=true.
 otel = [
