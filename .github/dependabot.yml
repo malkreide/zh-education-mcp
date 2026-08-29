@@ -9,12 +9,8 @@ updates:
       python-deps:
         patterns:
           - "*"
-    labels:
-      - "dependencies"
 
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "monthly"
-    labels:
-      - "dependencies"
