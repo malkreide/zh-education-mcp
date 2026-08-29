@@ -321,7 +321,7 @@ jobs:
       # und folgenlos für den Zustand, den das Issue führt.
       - name: Issue öffnen, aktualisieren oder schliessen
         if: steps.suite.outputs.filtered != 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         # Über `env`, nicht über `${{ }}` im Skript: Die pytest-Ausgabe ist
         # fremder Text, der in einem JavaScript-Template-Literal landen würde.
         # Ein Backtick oder ein `${` darin bricht das Skript oder führt aus,
