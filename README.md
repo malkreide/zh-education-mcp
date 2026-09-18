@@ -207,6 +207,7 @@ zh-education-mcp/
 │   ├── config.py               # ENV settings (MCP_*)
 │   ├── constants.py            # API base, endpoints, timeouts
 │   ├── logging_setup.py        # structured stderr logging
+│   ├── identity.py             # server identity for `_meta` / `server/discover`
 │   ├── provenance.py           # response envelope, license attribution
 │   ├── http_client.py          # egress guard, connection pool, lifespan
 │   ├── data.py                 # cache, CSV fetch, filters, error handling
@@ -292,6 +293,28 @@ the assembled ASGI stack, not read off a constant name.
 Note that the SDK's `LATEST_PROTOCOL_VERSION` is an alias for the **modern**
 era, not for the handshake era — pinning against it alone would leave the era
 that current clients actually negotiate free to drift.
+
+### What the server itself contributes on the modern era
+
+Speaking the revision is the SDK's job. What a *server* has to supply is listed
+here, and measured in
+[`tests/test_modern_protocol.py`](tests/test_modern_protocol.py) against real
+requests through the assembled ASGI stack rather than against constants:
+
+| What `2026-07-28` requires | How this server supplies it |
+|---|---|
+| `serverInfo` stamp on **every** result (spec #3002) | Name, title, version, description and website — from the package metadata, see [`identity.py`](src/zh_education_mcp/identity.py) |
+| `server/discover` ("Servers **MUST** implement") | Answers with `supportedVersions`, `capabilities` and `instructions` |
+| `instructions` for the model | Reference date, suppressed small counts, attribution duty, read-only scope — deliberately the things no tool description carries |
+| `resultType` on every result | Set by the SDK, asserted here against the wire |
+| Envelope and header validation (`Mcp-Method`, `Mcp-Name`, `Mcp-Protocol-Version`) | A contradicting header is rejected with `-32020`, a missing envelope with `-32602` |
+| Freshness hints (SEP-2549) | Every cacheable **listing** method carries `ttlMs` 300,000 / `cacheScope` `public`; `resources/read` deliberately does not |
+
+The identity is **not** maintained in `src/`: version, description and website
+come from the distribution metadata and therefore from `pyproject.toml` — the
+one source [`check_version_sync.py`](scripts/check_version_sync.py) permits.
+Before this revision the server stamped `version: ""` onto every modern-era
+result.
 
 **Update policy.** When the gate fails, do not edit the constant blindly: read
 the spec changelog between the two revisions, verify the server still behaves,

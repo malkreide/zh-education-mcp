@@ -17,6 +17,7 @@ auf fokussierte Submodule aufgeteilt (ARCH-011):
   · config         — ENV-Settings
   · constants       — API-Basis, Endpunkte, Timeouts
   · logging_setup   — strukturiertes stderr-Logging
+  · identity        — Server-Identitaet fuer `_meta`/`server/discover` (2026-07-28)
   · provenance      — Response-Envelope, Lizenz-Attribution, ResponseFormat
   · http_client     — Egress-Guard, Connection-Pool, Lifespan
   · data            — Cache, CSV-Fetch, Filter, Fehler-Sanitisierung
@@ -57,6 +58,14 @@ from .http_client import (  # noqa: F401
     _get_client,
     _http_get,
     lifespan,
+)
+from .identity import (  # noqa: F401
+    SERVER_DESCRIPTION,
+    SERVER_INSTRUCTIONS,
+    SERVER_NAME,
+    SERVER_TITLE,
+    SERVER_VERSION,
+    SERVER_WEBSITE_URL,
 )
 from .logging_setup import log  # noqa: F401
 from .models import (  # noqa: F401
@@ -99,6 +108,12 @@ __all__ = [
     "HTTP_TIMEOUT",
     "PROVENANCE",
     "ResponseFormat",
+    "SERVER_DESCRIPTION",
+    "SERVER_INSTRUCTIONS",
+    "SERVER_NAME",
+    "SERVER_TITLE",
+    "SERVER_VERSION",
+    "SERVER_WEBSITE_URL",
     "SOURCE_LICENSE",
     "SOURCE_NAME",
     "SOURCE_URL",

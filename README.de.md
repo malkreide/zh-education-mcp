@@ -197,6 +197,7 @@ zh-education-mcp/
 │   ├── config.py               # ENV-Settings (MCP_*)
 │   ├── constants.py            # API-Basis, Endpunkte, Timeouts
 │   ├── logging_setup.py        # strukturiertes stderr-Logging
+│   ├── identity.py             # Server-Identität für `_meta` / `server/discover`
 │   ├── provenance.py           # Response-Envelope, Lizenz-Attribution
 │   ├── http_client.py          # Egress-Guard, Connection-Pool, Lifespan
 │   ├── data.py                 # Cache, CSV-Fetch, Filter, Fehlerbehandlung
@@ -283,6 +284,28 @@ abgelesen.
 Zu beachten: `LATEST_PROTOCOL_VERSION` im SDK ist ein Alias auf die **moderne**
 Aera, nicht auf die Handshake-Aera — wer nur dagegen pinnt, laesst genau die
 Aera frei wandern, die heutige Clients tatsaechlich aushandeln.
+
+### Was der Server auf der modernen Aera von sich aus leistet
+
+Die Revision zu *sprechen* erledigt das SDK. Was ein Server beitragen muss,
+steht hier — und wird in
+[`tests/test_modern_protocol.py`](tests/test_modern_protocol.py) an echten
+Anfragen durch den zusammengebauten ASGI-Stack gemessen, nicht an Konstanten:
+
+| Was `2026-07-28` verlangt | Wie dieser Server es erfuellt |
+|---|---|
+| `serverInfo`-Stempel auf **jeder** Antwort (Spec #3002) | Name, Titel, Version, Beschreibung und Website — aus den Paket-Metadaten, siehe [`identity.py`](src/zh_education_mcp/identity.py) |
+| `server/discover` («Servers **MUST** implement») | Antwortet mit `supportedVersions`, `capabilities` und `instructions` |
+| `instructions` fuer das Modell | Stichtag, unterdrueckte Fallzahlen, Lizenzpflicht, Lese-Beschraenkung — bewusst das, was in keiner Tool-Beschreibung steht |
+| `resultType` auf jedem Ergebnis | Vom SDK gesetzt, hier gegen den Draht geprueft |
+| Umschlag- und Header-Pruefung (`Mcp-Method`, `Mcp-Name`, `Mcp-Protocol-Version`) | Ein widersprechender Header wird mit `-32020` abgewiesen, ein fehlender Umschlag mit `-32602` |
+| Frischehinweise (SEP-2549) | Alle cachebaren **Verzeichnis**-Methoden tragen `ttlMs` 300 000 / `cacheScope` `public`; `resources/read` bewusst nicht |
+
+Die Identitaet wird **nicht** in `src/` gepflegt: Version, Beschreibung und
+Website kommen aus den Distributions-Metadaten und damit aus `pyproject.toml` —
+derselben Quelle, die [`check_version_sync.py`](scripts/check_version_sync.py)
+als einzige zulaesst. Vor dieser Fassung stempelte der Server
+`version: ""` auf jede Antwort der modernen Aera.
 
 **Update-Politik.** Faellt das Gate, die Konstante nicht blind nachziehen: erst
 das Spec-Changelog zwischen den beiden Revisionen lesen, pruefen, ob sich der

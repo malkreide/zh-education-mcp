@@ -18,7 +18,7 @@ from mcp import Client
 from mcp.server.caching import CACHEABLE_METHODS
 from mcp.server.mcpserver import MCPServer
 
-from zh_education_mcp.tools import CACHE_HINTS, LIST_CACHE_TTL_MS, mcp
+from zh_education_mcp.tools import CACHE_HINTS, CONTENT_METHODS, LIST_CACHE_TTL_MS, mcp
 
 
 async def test_die_werkzeugliste_traegt_die_ttl() -> None:
@@ -88,3 +88,49 @@ def test_kein_hinweis_auf_einer_inhalts_methode() -> None:
     `resources/read` und `prompts/get` liefern Inhalt, kein Verzeichnis."""
     assert "resources/read" not in CACHE_HINTS
     assert "prompts/get" not in CACHE_HINTS
+
+
+async def test_die_leere_promptliste_traegt_dieselbe_ttl() -> None:
+    """Der Eintrag, den die Handliste vergessen hatte.
+
+    `prompts/list` ist nach `CACHEABLE_METHODS` cachebar und stand trotzdem
+    nicht in `CACHE_HINTS` — einem Dict sieht niemand an, was ihm fehlt. Dass
+    dieser Server keine Prompts hat, ist kein Gegenargument: die leere Liste
+    steht beim Import so fest wie die gefuellten und wurde bis dahin bei jeder
+    Verbindung neu geholt.
+    """
+    async with Client(mcp) as client:
+        result = await client.list_prompts()
+
+    assert result.prompts == []
+    assert result.ttl_ms == LIST_CACHE_TTL_MS
+    assert result.cache_scope == "public"
+
+
+def test_jede_cachebare_methode_ist_entschieden() -> None:
+    """Die Regel statt der Aufzaehlung — und der eigentliche Fix.
+
+    Eine Handliste kann nur veralten; ein gerechneter Vergleich meldet sich.
+    Nimmt das SDK eine weitere Methode in `CACHEABLE_METHODS` auf, faellt
+    dieser Test, und jemand muss entscheiden: Verzeichnis (Hinweis) oder
+    Inhalt (`CONTENT_METHODS`). Ohne ihn bliebe die neue Methode still bei
+    `ttlMs: 0` — sichtbar wird das erst an der Last, und dann nicht hier.
+
+    Dieselbe Frage wie bei jeder Vorgabe: nicht nur, ob der gesetzte Wert
+    etwas bewirkt, sondern was gilt, wenn man den Eintrag weglaesst.
+    """
+    assert set(CACHE_HINTS) == set(CACHEABLE_METHODS) - CONTENT_METHODS, (
+        "CACHE_HINTS und CACHEABLE_METHODS sind auseinandergelaufen; fehlend: "
+        f"{sorted(set(CACHEABLE_METHODS) - CONTENT_METHODS - set(CACHE_HINTS))}, "
+        f"ueberzaehlig: {sorted(set(CACHE_HINTS) - set(CACHEABLE_METHODS))}"
+    )
+
+
+def test_die_inhalts_ausnahme_ist_wirklich_cachebar() -> None:
+    """Sonst traegt `CONTENT_METHODS` einen Namen, den niemand mehr vergibt.
+
+    Ein Tippfehler oder eine vom SDK entfernte Methode wuerde die Subtraktion
+    oben wirkungslos machen, ohne dass etwas rot wird — die Ausnahme zoege
+    dann nichts mehr ab und niemand merkte es.
+    """
+    assert CONTENT_METHODS <= set(CACHEABLE_METHODS)
