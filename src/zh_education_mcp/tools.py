@@ -26,6 +26,14 @@ from .data import (
     _suppression_note,
 )
 from .http_client import lifespan
+from .identity import (
+    SERVER_DESCRIPTION,
+    SERVER_INSTRUCTIONS,
+    SERVER_NAME,
+    SERVER_TITLE,
+    SERVER_VERSION,
+    SERVER_WEBSITE_URL,
+)
 from .models import (
     ListSchulgemeindensInput,
     MaturitaetsquoteInput,
@@ -65,11 +73,38 @@ CACHE_HINTS: dict[CacheableMethod, CacheHint] = {
     "tools/list": CacheHint(ttl_ms=LIST_CACHE_TTL_MS, scope="public"),
     "resources/list": CacheHint(ttl_ms=LIST_CACHE_TTL_MS, scope="public"),
     "resources/templates/list": CacheHint(ttl_ms=LIST_CACHE_TTL_MS, scope="public"),
+    "prompts/list": CacheHint(ttl_ms=LIST_CACHE_TTL_MS, scope="public"),
     "server/discover": CacheHint(ttl_ms=LIST_CACHE_TTL_MS, scope="public"),
 }
 
+# Die Regel hinter dem Dict oben, maschinenlesbar — und der Grund, warum
+# `prompts/list` nachtraeglich dazukam.
+#
+# Die Liste war von Hand gefuehrt und deshalb unvollstaendig: `prompts/list`
+# ist nach `CACHEABLE_METHODS` cachebar, stand aber nicht da, und niemand sieht
+# einem Dict an, was ihm fehlt. Dass dieser Server heute keine Prompts hat,
+# aendert daran nichts — die leere Liste steht beim Import fest wie die
+# gefuellten und wurde bei jeder Verbindung neu geholt.
+#
+# `resources/read` ist der einzige cachebare Eintrag, der Inhalt liefert statt
+# eines Verzeichnisses; ein Hinweis darauf waere eine Zusicherung ueber die
+# BISTA-Daten, nicht ueber unser Verzeichnis. Genau diese eine Ausnahme steht
+# hier, und `tests/test_cache_hints.py` rechnet die Differenz nach. Nimmt das
+# SDK eine weitere Methode in `CACHEABLE_METHODS` auf, faellt der Test — dann
+# ist zu entscheiden, nicht stillschweigend bei `ttlMs: 0` zu bleiben.
+CONTENT_METHODS = frozenset({"resources/read"})
+
+# Identitaet: seit Spec 2026-07-28 steht sie in `_meta` JEDER Antwort und
+# fuellt `server/discover`. Vorher gab dieser Server dort `version: ""` und
+# `instructions: null` aus — siehe `identity.py` fuer die Messung und dafuer,
+# warum die Werte aus den Paket-Metadaten kommen statt aus Literalen.
 mcp = MCPServer(
-    "zh_education_mcp",
+    SERVER_NAME,
+    title=SERVER_TITLE,
+    description=SERVER_DESCRIPTION,
+    website_url=SERVER_WEBSITE_URL,
+    version=SERVER_VERSION,
+    instructions=SERVER_INSTRUCTIONS,
     cache_hints=CACHE_HINTS,
     lifespan=lifespan,
 )

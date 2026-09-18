@@ -7,6 +7,110 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — der Server ist jetzt nativ auf Spec `2026-07-28`
+
+Die Revision zu *sprechen* hat das SDK schon erledigt: der moderne
+Pro-Request-Umschlag wurde bedient, `server/discover` beantwortet, `resultType`
+gesetzt. Was fehlte, war der Teil, den kein SDK beisteuern kann — was dieser
+Server über sich selbst aussagt. Nachgemessen an echten Anfragen durch den
+zusammengebauten ASGI-Stack, nicht aus Konstantennamen geschlossen.
+
+**Jede moderne Antwort trug eine leere Version.** Seit `2026-07-28` stempelt der
+Runner `_meta["io.modelcontextprotocol/serverInfo"]` auf *jedes* Ergebnis (Spec
+#3002). Gemessen stand dort `{"name": "zh_education_mcp", "version": ""}` — kein
+Titel, keine Beschreibung, keine Website. `Implementation.version` ist im Typ der
+Revision ein Pflichtfeld; `""` erfüllt es formal und sagt nichts.
+
+Das war keine Voreinstellung des SDK, die man hinnimmt, sondern unsere
+Auslassung. Das SDK sagt es selbst: «An unversioned server reports an empty
+`version`; the SDK never substitutes its own»
+(`mcp/server/lowlevel/server.py`). Genau der Fall aus Teil 1 der `CLAUDE.md`,
+andersherum — nicht «wirkt der gesetzte Wert?», sondern «was gilt, wenn man den
+Eintrag weglässt?».
+
+**`server/discover` antwortete ohne `instructions`.** Die Methode ist der
+Einstieg der Revision («Servers **MUST** implement `server/discover`») und die
+einzige Stelle, an der ein Client ohne Handshake erfährt, was dieser Server ist.
+`instructions` stand auf `null`.
+
+Was jetzt dort steht, ist bewusst das, was in **keiner** Tool-Beschreibung
+vorkommt — die Spec verlangt genau das («should not duplicate information
+already in tool descriptions»): der Stichtag 15. September, die Unterdrückung
+kleiner Fallzahlen («1 bis 5»), die Attributionspflicht aus CC BY 4.0 und die
+Lese-Beschränkung. Ohne den zweiten Punkt liest ein Modell eine Untergrenze als
+Summe; das ist der einzige dieser vier, an dem eine Antwort inhaltlich falsch
+wird. `tests/test_server_identity.py` misst die Nicht-Dopplung, statt sie zu
+behaupten: jede der drei Tatsachen muss in den `instructions` stehen und in
+keiner Tool-Beschreibung.
+
+**Die Identität wird nicht in `src/` gepflegt.** Version, Beschreibung und
+Website kommen aus den Distributions-Metadaten und damit aus `pyproject.toml` —
+derselben Quelle, die `scripts/check_version_sync.py` als einzige zulässt. Ein
+Literal wäre der Anfang genau der Drift, gegen die es dieses Skript gibt.
+
+Die Homepage wird am **Label** gesucht, nicht an der Position: die Metadaten
+führen drei URLs unter `Project-URL`, und deren Reihenfolge gehört dem
+Build-Backend. «Nimm die erste» wäre heute richtig und beim nächsten
+hatchling-Update still falsch — ein Test fährt den Fall mit `Homepage` an
+letzter Stelle.
+
+Fehlt die Installation (blanker Klon), bleiben Beschreibung und Website `None`
+statt geraten. Beide sind in der Spec optional und fallen aus dem Stempel heraus;
+eine weggelassene Auskunft ist richtig, eine erfundene nicht — dieselbe
+Entscheidung wie beim Versions-Fallback `0.0.0+source`.
+
+**`title` ist neu, `name` bleibt.** `zh_education_mcp` steht in jeder
+Client-Konfiguration, die diesen Server einträgt — ein «schönerer» Name wäre ein
+stiller Bruch. Dafür gibt es seit `2025-06-18` `title`, und den gibt es jetzt.
+
+### Added — die moderne Ära wird zum ersten Mal gemessen
+
+Bis hierher war sie im Repo nur behauptet: die READMEs beschreiben sie,
+`tests/test_protocol_version.py` misst den `initialize`-Handshake — also die
+*andere* Ära — und `tests/test_cache_hints.py` fragt über eine
+In-Process-Sitzung, die sich ihre Revision selbst aussucht. Keine Zeile fuhr je
+einen `2026-07-28`-Umschlag über HTTP durch diesen Server. Der Unterschied ist
+nicht theoretisch: der Umschlag wird zur Hälfte aus HTTP-Headern geprüft, und
+eine In-Process-Sitzung hat keine.
+
+`tests/test_modern_protocol.py` (16 Fälle) tut es, in drei Schichten:
+
+- **Die Leiter greift.** Ein Body ohne `_meta`-Umschlag wird mit `-32602`
+  abgewiesen, ein `Mcp-Method`- oder `Mcp-Name`-Header, der dem Body
+  widerspricht, mit `-32020`, eine unbekannte Revision mit `-32022` samt
+  `supported`-Liste. Das ist der Beleg, dass die Anfrage überhaupt den modernen
+  Weg genommen hat — ohne ihn wäre jede grüne Zusicherung darunter auch mit
+  einem Server vereinbar, der den Umschlag schlicht ignoriert.
+- **Die Pflichtfelder stehen auf dem Draht:** `resultType` und der vollständige
+  `serverInfo`-Stempel.
+- **Die Gegenprobe:** eine Handshake-Verbindung trägt *beides nicht* — die
+  Vokabeln gehören der modernen Ära. Ohne diesen Fall prüfte die Schicht
+  darüber nur, dass irgendwo Felder sind, nicht dass die Revision sie hinlegt.
+
+Jede neue Zusicherung wurde einzeln neutralisiert; es fallen jeweils genau die
+zugehörigen Tests und keine fremden.
+
+### Behoben — `prompts/list` fehlte in der Cache-Hint-Liste
+
+`prompts/list` ist nach `CACHEABLE_METHODS` cachebar, stand aber nicht in
+`CACHE_HINTS` und antwortete deshalb mit `ttlMs: 0` / `cacheScope: private` —
+«sofort veraltet, nie teilen», für ein Verzeichnis, das beim Import feststeht.
+Dass dieser Server keine Prompts hat, ist kein Gegenargument: die leere Liste
+steht so fest wie die gefüllten und wurde bei jeder Verbindung neu geholt.
+
+Der eigentliche Fehler war die **Form** der Konfiguration, nicht der fehlende
+Eintrag. Eine Handliste kann nur veralten, und einem Dict sieht niemand an, was
+ihm fehlt. Neben `CACHE_HINTS` steht jetzt `CONTENT_METHODS` — die eine
+cachebare Methode, die Inhalt statt eines Verzeichnisses liefert
+(`resources/read`) — und ein Test rechnet die Differenz nach:
+`CACHE_HINTS == CACHEABLE_METHODS - CONTENT_METHODS`. Nimmt das SDK eine weitere
+cachebare Methode auf, fällt er, und jemand muss entscheiden; vorher wäre sie
+still bei `ttlMs: 0` geblieben, sichtbar erst an der Last.
+
+Ein zweiter Test hält fest, dass `CONTENT_METHODS` wirklich cachebare Namen
+enthält — sonst zöge die Ausnahme eines Tages nichts mehr ab, ohne dass etwas
+rot wird.
+
 ### Behoben
 
 - **Browser-Clients scheiterten am Preflight.** Spec `2026-07-28` routet eine
