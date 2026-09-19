@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-19
+
 ### Added — der Server ist jetzt nativ auf Spec `2026-07-28`
 
 Die Revision zu *sprechen* hat das SDK schon erledigt: der moderne
@@ -456,6 +458,36 @@ hängt, die BISTA morgen wieder ändern kann.
   am 3. August ein roter Format-Check an Code zustande, den niemand angefasst
   hatte: lokal mit Standard-Zeilenbreite 88 umgebrochen, waehrend das Projekt
   100 setzt. Beim Anheben gehoeren Grenze und CI-Pin gemeinsam bewegt.
+
+### Hinzugefuegt — Gates und Werkzeuge, die bisher kein Changelog-Eintrag nannte
+
+Beim Schneiden dieses Releases nachgetragen: vier Aenderungen aus dem Fenster
+seit `0.2.7` standen im Repo, aber in keinem Eintrag. Ein Release-Protokoll,
+das die Haelfte der Gates verschweigt, laesst kuenftig niemanden nachvollziehen,
+ab wann eine Pruefung galt.
+
+- **`scripts/check_ruff_pin.py`** — prueft, dass das *aufgerufene* `ruff` der
+  gepinnte ist. Der Eintrag weiter unten beschreibt noch den Zwischenstand
+  (`>=0.16,<0.17` plus ein eigener Pin in `ci.yml`); beides gilt nicht mehr.
+  Der Pin steht jetzt exakt und nur in `pyproject.toml` (`dev`-Extra), die CI
+  installiert ihn darueber mit. Noetig wurde die Pruefung, weil ein aelteres
+  `ruff` frueher im `PATH` den Pin schlaegt, ohne dass der Install etwas meldet
+   — der Lauf ist dann gruen oder rot aus einem Grund, der nicht im Diff steht.
+
+- **`.claude/hooks/session-start.sh`** — meldet beim Sessionstart, wie viele
+  Commits der ausgecheckte Stand hinter dem Default-Branch liegt, und schweigt
+  bei 0. Er blockiert die Session nie (`trap 'exit 0' EXIT` statt `set -e`),
+  hat kurze Timeouts je Netzaufruf und ermittelt den Default-Branch, statt
+  `main` zu raten. Gegenprobe in `tests/test_session_start_hook.py` (16 Tests
+  gegen echte Wegwerf-Repos ueber `file://`, ohne Netz).
+
+- **`.github/workflows/tls-probe.yml` + `scripts/tls_import_probe.py`** — eine
+  Sonde auf `workflow_dispatch`, die einen Verdacht auf ein TLS- oder
+  Import-Problem gegen die Quelle pruefbar macht. Kein Gate: sie taucht auf
+  keinem PR auf und soll das auch nicht.
+
+- **`.github/pull_request_template.md`** — mit der Zeile, die vor dem Merge
+  einen beantworteten Codex-Review verlangt.
 
 ## [0.2.7] - 2026-08-03
 
