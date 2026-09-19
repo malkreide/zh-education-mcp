@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Entfernt
+
+- **`RELEASE_NOTES_v0.3.0.md`.** Die Datei entstand bei der Release-Vorbereitung
+  nach dem Vorbild von `RELEASE_NOTES_v0.2.0.md`, wurde aber nicht gebraucht:
+  Der Release-Koerper von `v0.3.0` kam aus dem CHANGELOG-Abschnitt. Eine zweite
+  Fassung derselben Auskunft, die niemand liest, veraltet still — und verweisen
+  tat auf sie ohnehin nichts (weder README noch ein Workflow, und ins Wheel
+  wandert sie nicht, weil `packages` nur `src/zh_education_mcp` umfasst).
+  Kuenftige Release-Koerper kommen aus dem CHANGELOG.
+
 ## [0.3.0] - 2026-09-19
 
 ### Added — der Server ist jetzt nativ auf Spec `2026-07-28`
