@@ -262,7 +262,8 @@ ohne dass jemand hineingesehen hat, und am 22.8. noch einmal 43.
 
 **Vier** Gründe, warum Codex schweigt, und nur einer davon ist harmlos:
 
-- **Kein Befund** — dann schreibt er einen gewöhnlichen Issue-Kommentar:
+- **Kein Befund** — dafür gibt es **zwei** Formen, und die zweite stand hier
+  lange nicht. Die erste ist ein gewöhnlicher Issue-Kommentar:
 
   ```
   Codex Review: Didn't find any major issues. Swish!
@@ -273,6 +274,10 @@ ohne dass jemand hineingesehen hat, und am 22.8. noch einmal 43.
   Infokasten, den Codex unter jeden Review setzt, behauptet weiterhin eine
   Reaktion («otherwise it will react with 👍») — am 23.8. kam in sechs Repos
   die Meldung und in keinem die Reaktion. Der Kasten ist keine Quelle.
+
+  Die zweite Form ist die **Review-Summary mit Statuszeile** (siehe unten).
+  Sie ist kein fünfter *Grund* — der Grund ist derselbe, «kein Befund» —,
+  sondern ein zweiter Träger derselben Auskunft.
 - **Der PR ist ein Draft** — darauf läuft Codex nicht an.
 - **Das Kontingent ist weg** — dann schreibt er die Meldung oben.
 - **Für das Repo fehlt eine Environment** — dann schreibt er:
@@ -293,7 +298,8 @@ Vermutung über die Reihenfolge.
 Praktisch heisst das: **Eine verschwundene Limit-Meldung ist keine Entwarnung.**
 Sie kann bedeuten, dass das Kontingent wieder da ist — und dass jetzt etwas
 anderes den Review verhindert. Belegt ist eine Prüfung erst durch ein
-Review-Objekt **oder** eine Befundlos-Meldung. Wer nur das Objekt gelten lässt,
+Review-Objekt, eine Befundlos-Meldung **oder** eine Review-Summary, deren
+Statuszeile auf `Completed` steht. Wer nur das Objekt gelten lässt,
 zählt jeden befundlosen Review als ungeprüft — und baut sich denselben Fehlalarm
 ein, den dieser Abschnitt verhindern soll, nur in die andere Richtung.
 
@@ -309,13 +315,65 @@ Das sind verschiedene Abfragen — `get_reviews` fürs Objekt, `get_comments` f�
 alles andere; wer nur eine nimmt, übersieht den Rest. Genau so ist die
 Limit-Meldung zuerst durchgerutscht.
 
+**Die Review-Summary ist ein Signal, das seinen Text ändert.** Am 18.–20.9.2026
+kam in `zh-education-mcp` bei drei befundlosen Läufen **keine** der oben
+beschriebenen Formen. Statt eines Review-Objekts und statt der
+«Swish»-Meldung stand dort ein Issue-Kommentar mit einer Statustabelle:
+
+```
+<!-- codex-pull-request-review-summary -->
+
+## Codex Review Summary
+
+| Review | Status | Commit | Review trigger |
+| --- | --- | --- | --- |
+| 📝 **Code Review** | ✅ **Completed** <Zeitstempel> | `<sha>` | Draft marked ready |
+```
+
+Während des Laufs steht in derselben Zelle `🔄 **Running** since <Zeitstempel>`.
+Es ist **derselbe Kommentar**, nur aktualisiert: gleiche `id`, `created_at`
+unverändert, `updated_at` wandert. Daraus folgen drei Dinge, die keine der
+bisherigen Formen hat:
+
+- **Eine Abfrage ist eine Momentaufnahme, kein Urteil.** Wer «Running» liest
+  und daraus schliesst, der Lauf sei gestorben, hat die Zukunft geraten statt
+  etwas gemessen. Genau so ist am 18.9. bei PR #86 ein befundloser Review als
+  «ungeprüft gemergt» in die Notizen geraten und musste zurückgenommen werden.
+- **Der Wechsel legt keinen neuen Kommentar an.** Wer darauf wartet, dass
+  «etwas Neues erscheint», wartet vergeblich: Der Zähler bleibt bei 1, nur der
+  Text darunter wechselt. Ob das Umspringen ein Webhook-Ereignis auslöst, ist
+  hier **nicht gemessen** — in allen drei Fällen war der PR längst gemergt und
+  das Aktivitäts-Abo beendet, bevor die Summary überhaupt erschien. Wer sich
+  darauf verlassen will, misst es an einem offenen PR nach.
+- **Der Marker ist stabiler als der Text.** `codex-pull-request-review-summary`
+  im HTML-Kommentar identifiziert die Summary unabhängig von Sprache, Emoji
+  und Tabellenbau.
+
+Gemessen, drei Läufe, alle befundlos und alle gegen den bereits gemergten
+Commit:
+
+| PR | Start (UTC) | `Completed` | Dauer | Commit |
+|---|---|---|---|---|
+| #86, 18.9. | 18:22:59 | 18:24:03 | 64 s | `d19d00b` |
+| #87, 19.9. | 17:11:17 | 17:12:30 | 73 s | `f72cf4a` |
+| #88, 20.9. | 08:06:45 | 08:07:42 | 57 s | `65716b3` |
+
+Was diese drei Läufe **nicht** hergeben: ob die «Swish»-Meldung abgelöst ist
+oder ob beide Formen nebeneinander vorkommen. Drei Läufe in einem Repo an drei
+Tagen sind kein Beleg für das Portfolio. Beide Formen stehen deshalb oben, und
+beide gelten. Die 👍-Reaktion blieb übrigens auch hier jedes Mal aus
+(`reactions.total_count` = 0) — dritter Beleg dafür, dass der Infokasten keine
+Quelle ist.
+
 Der Kommentarzähler allein reicht ohnehin nicht: `comments: 1` kann die
-Befundlos-, die Kontingent- **oder** die Environment-Meldung sein — drei
-gegensätzliche Bedeutungen unter derselben Zahl. Den Text lesen, nicht die Zahl.
-Und einen unbekannten vierten Text wörtlich zitieren, statt ihn in eine der
+Befundlos-, die Kontingent-, die Environment-Meldung **oder** eine
+Review-Summary sein — und die Summary wiederum «Running» oder «Completed», also
+«läuft noch» oder «sauber». Vier gegensätzliche Bedeutungen unter derselben
+Zahl, eine davon zeitabhängig. Den Text lesen, nicht die Zahl.
+Und einen unbekannten Text wörtlich zitieren, statt ihn in eine der
 bekannten Schubladen zu zwingen: Dieser Abschnitt musste schon einmal von drei
-auf vier Gründe wachsen, und die 👍-Reaktion stand hier zwei Fassungen lang als
-Tatsache.
+auf vier Gründe wachsen, dann um eine zweite Form von «kein Befund», und die
+👍-Reaktion stand hier zwei Fassungen lang als Tatsache.
 
 Und ein befundloser Lauf ist kein Freispruch. Am 23.8. lief derselbe Text durch
 42 Reviews: 36 meldeten denselben P2-Befund, 6 die Befundlos-Meldung — gleiche
@@ -337,6 +395,14 @@ mergen. Am 21./22.8. lagen zwischen «ready for review» und Merge mehrfach drei
 bis fünf Sekunden. Codex wird beim Umschalten von Draft auf ready ausgelöst und
 braucht danach Zeit; wer sofort mergt, hat das Häkchen gesetzt und den Review
 nicht abgewartet.
+
+**Der Review geht dabei nicht verloren — er kommt zu spät.** Bei #86, #87 und
+#88 startete Codex jedes Mal zwei bis vier Sekunden **nach** dem Merge und lief
+trotzdem gegen den gemergten Commit durch (Tabelle oben). Das ist die
+gefährlichere Variante: Nicht «kein Review», sondern ein Review, dessen Befund
+in `main` landen würde statt im PR. Alle drei kamen sauber zurück; das ist ein
+Ergebnis, kein Verfahren. Eine Minute zwischen ready und Merge deckt das
+Häkchen, statt es nur zu setzen.
 
 Das Kontingent hängt am Konto, nicht am Repo, und Code-Reviews haben einen
 eigenen Topf — nur GitHub-getriggerte Reviews zählen hinein. ChatGPT-Pläne
