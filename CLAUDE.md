@@ -403,8 +403,7 @@ nicht abgewartet.
 Merge und lief trotzdem gegen den gemergten Commit durch (Tabelle oben; #91
 gemergt 16:47:37, #92 um 17:35:17). Das ist die gefährlichere Variante: Nicht
 «kein Review», sondern ein Review, dessen Befund in `main` landen würde statt
-im PR. Alle fünf kamen sauber zurück; das ist ein
-Ergebnis, kein Verfahren.
+im PR. Alle fünf kamen sauber zurück; das ist ein Ergebnis, kein Verfahren.
 
 **Eine feste Wartezeit genügt nicht; die Statuszeile entscheidet.** Hier stand
 einmal «eine Minute zwischen ready und Merge». Die Messungen widerlegen das:
@@ -472,8 +471,9 @@ wie der Code: Nichts ist rot, weil nichts geprüft wird, worauf es ankommt.
 Die Version steht bewusst nicht hier: Diese Zeile nannte `0.16.3`, als der Pin
 längst auf `0.16.5` stand — eine zweite Nennung ist eine zweite Quelle, und die
 veraltet still. Die CI hat keinen eigenen Pin-Schritt — der Install über
-`ci.yml` genügt, lokal wie dort. Eine `.pre-commit-config.yaml` gibt es nicht; wenn eine dazukommt, muss
-sie dieselbe Version aus `pyproject.toml` beziehen und keine zweite nennen.
+`ci.yml` genügt, lokal wie dort. Eine `.pre-commit-config.yaml` gibt es nicht;
+wenn eine dazukommt, muss sie dieselbe Version aus `pyproject.toml` beziehen
+und keine zweite nennen.
 
 Vor dem Lauf `ruff --version` prüfen: ein älteres ruff früher im `PATH`
 schlägt den Pin, ohne dass der Install etwas meldet.
