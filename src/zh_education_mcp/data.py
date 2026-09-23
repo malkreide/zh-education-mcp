@@ -175,6 +175,24 @@ def _normalise_keys(row: dict) -> dict:
     return {(k or "").lower(): v for k, v in row.items()}
 
 
+def _strip_bom(text: str) -> str:
+    """Entfernt ein führendes UTF-8-BOM aus dem CSV-Text.
+
+    Seit spätestens 21. September 2026 stellt BISTA allen sechs genutzten
+    Datensätzen ein BOM (``EF BB BF``) voran, meldet aber weiter
+    ``charset=utf-8`` statt ``utf-8-sig``. httpx dekodiert darum korrekt nach
+    dem Header und lässt ``\ufeff`` stehen — es landet im **ersten**
+    Spaltennamen: ``stand`` wird zu ``\ufeffstand``.
+
+    Das sieht harmlos aus, solange die erste Spalte keine gelesene ist. Bei
+    ``data_lernende_nach_wohngemeinde`` ist sie es: Dort steht ``jahr`` vorn,
+    und `_confirm_shape` meldete «führt ['jahr'] nicht mehr», obwohl die Spalte
+    unverändert da war. Am Text statt an den Bytes, damit die Zeichensatzwahl
+    des Headers weiter gilt.
+    """
+    return text.removeprefix("\ufeff")
+
+
 async def _fetch_csv(endpoint: str, ctx: object | None = None) -> list[dict]:
     """Holt CSV-Daten von einem BISTA-Endpunkt und gibt eine Liste von Dicts zurück.
 
@@ -194,7 +212,7 @@ async def _fetch_csv(endpoint: str, ctx: object | None = None) -> list[dict]:
         await ctx.report_progress(0.0, 1.0, "Abruf gestartet")
     resp = await _http_get(f"{BISTA_API}/{endpoint}")
     resp.raise_for_status()
-    reader = csv.DictReader(io.StringIO(resp.text))
+    reader = csv.DictReader(io.StringIO(_strip_bom(resp.text)))
     rows = [_normalise_keys(row) for row in reader]
     _confirm_shape(endpoint, rows)
     _cache_set(endpoint, rows)
