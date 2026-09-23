@@ -174,6 +174,40 @@ async def test_the_fetch_path_confirms_the_shape(monkeypatch):
         await _fetch_csv(EP_SEK1)
 
 
+@respx.mock
+@pytest.mark.asyncio
+@pytest.mark.parametrize("endpoint", sorted(FIXTURE_FOR))
+async def test_a_leading_bom_does_not_hide_the_first_column(monkeypatch, endpoint):
+    """BISTA liefert seit September 2026 ``EF BB BF`` vor der Kopfzeile.
+
+    Am 23.9.2026 an allen sechs Endpunkten nachgemessen, bei unverändertem
+    ``Content-Type: text/csv; charset=utf-8``. Gebaut aus der Aufnahme plus
+    genau diesen drei Bytes, wie die Quelle sie schickt. Ohne `_strip_bom`
+    scheitert ``data_lernende_nach_wohngemeinde`` (erste Spalte ``jahr``) mit
+    `UpstreamSchemaError`; die übrigen fünf behielten ``\ufeffstand``.
+    """
+    import socket
+
+    monkeypatch.setattr(
+        "zh_education_mcp.http_client.socket.getaddrinfo",
+        lambda *a, **k: [
+            (socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", ("8.8.8.8", 443))
+        ],
+    )
+    from zh_education_mcp import data as data_mod
+
+    data_mod._cache.clear()
+    body = b"\xef\xbb\xbf" + (FIXTURES / FIXTURE_FOR[endpoint]).read_bytes()
+    respx.get(f"{BISTA_API}/{endpoint}").mock(
+        return_value=httpx.Response(
+            200, content=body, headers={"content-type": "text/csv; charset=utf-8"}
+        )
+    )
+    rows = await _fetch_csv(endpoint)
+    assert set(rows[0]) == set(_recorded_rows(endpoint)[0])
+    assert not any(k.startswith("\ufeff") for k in rows[0])
+
+
 # --- Gegen die ECHTE Antwort -------------------------------------------------
 
 

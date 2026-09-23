@@ -112,7 +112,9 @@ def record() -> int:
             resp = client.get(url)
             resp.raise_for_status()
 
-            reader = csv.DictReader(io.StringIO(resp.text))
+            # BISTA stellt seit September 2026 ein UTF-8-BOM voran; es gehoert
+            # zur Kodierung, nicht zur Kopfzeile (siehe `data._strip_bom`).
+            reader = csv.DictReader(io.StringIO(resp.text.removeprefix("\ufeff")))
             header = reader.fieldnames or []
             if not header:
                 print(f"FEHLER {name}: Antwort ohne Kopfzeile", file=sys.stderr)
