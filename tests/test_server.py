@@ -155,6 +155,96 @@ async def test_staatsangehoerigkeiten_top3():
     assert "Deutschland" in result
 
 
+async def _staatsangehoerigkeiten(**kw):
+    from zh_education_mcp.server import StaatsangehoerigkeitInput, zh_edu_staatsangehoerigkeiten
+
+    with respx.mock:
+        respx.get(f"{BISTA_BASE}/data_lernende_regelschule_regional_staatsangehoerigkeit").mock(
+            return_value=httpx.Response(200, text=SAMPLE_NAT_CSV)
+        )
+        return await zh_edu_staatsangehoerigkeiten(StaatsangehoerigkeitInput(**kw))
+
+
+def _nat_rows(traeger: str) -> list[dict]:
+    import csv
+    import io
+
+    return [r for r in csv.DictReader(io.StringIO(SAMPLE_NAT_CSV)) if r["schultraeger"] == traeger]
+
+
+@pytest.mark.asyncio
+async def test_zwei_traeger_gleichen_namens_werden_zusammengezaehlt():
+    """Andelfingen hat eine Primar- und eine Sekundarschulgemeinde.
+
+    Aus der Aufnahme berechnet, nicht abgeschrieben: Die Summe «Schweiz» muss
+    die beider Träger sein, und «Schweiz» darf nur einmal in der Liste stehen.
+    """
+    import json
+
+    rows = _nat_rows("Andelfingen")
+    codes = {r["schultraeger_code"] for r in rows}
+    assert len(codes) == 2, "Aufnahme trägt den Zwei-Träger-Fall nicht mehr"
+    swiss = sum(int(r["anzahl"]) for r in rows if r["staatsangehoerigkeit"] == "Schweiz")
+
+    out = json.loads(
+        await _staatsangehoerigkeiten(
+            schulgemeinde="Andelfingen", top_n=100, response_format="json"
+        )
+    )
+    names = [n["staatsangehoerigkeit"] for n in out["results"]]
+    assert names.count("Schweiz") == 1
+    assert out["results"][0] == {
+        "staatsangehoerigkeit": "Schweiz",
+        "staatsangehoerigkeit_iso2_code": "CH",
+        "anzahl": swiss,
+        "unterdrueckte_zeilen": 0,
+    }
+    assert {t["schultraeger_code"] for t in out["schultraeger"]} == codes
+
+    md = await _staatsangehoerigkeiten(schulgemeinde="Andelfingen", top_n=100)
+    assert "Zusammengezählt über 2 Schulträger" in md
+    assert "Primarschulgemeinde" in md and "Sekundarschulgemeinde" in md
+    assert f"| {swiss:,} |" in md
+
+
+@pytest.mark.asyncio
+async def test_teilweise_unterdrueckte_summe_ist_untergrenze():
+    """Zahl plus «1 bis 5» ist weder die Zahl noch unterdrückt, sondern beides."""
+    import json
+
+    rows = _nat_rows("Andelfingen")
+    by_nat: dict[str, list[str]] = {}
+    for r in rows:
+        by_nat.setdefault(r["staatsangehoerigkeit"], []).append(r["anzahl"])
+    mixed = {
+        k: v
+        for k, v in by_nat.items()
+        if any(x.isdigit() for x in v) and not all(x.isdigit() for x in v)
+    }
+    assert mixed, "Aufnahme trägt keinen teilweise unterdrückten Fall mehr"
+    nat, vals = sorted(mixed.items())[0]
+    known = sum(int(x) for x in vals if x.isdigit())
+    supp = sum(1 for x in vals if not x.isdigit())
+
+    out = json.loads(
+        await _staatsangehoerigkeiten(
+            schulgemeinde="Andelfingen", top_n=100, response_format="json"
+        )
+    )
+    entry = next(n for n in out["results"] if n["staatsangehoerigkeit"] == nat)
+    assert (entry["anzahl"], entry["unterdrueckte_zeilen"]) == (known, supp)
+
+    md = await _staatsangehoerigkeiten(schulgemeinde="Andelfingen", top_n=100)
+    assert f"| {known:,} + {supp}× 1 bis 5 | ≥ " in md
+
+
+@pytest.mark.asyncio
+async def test_ein_traeger_wird_benannt_nicht_zusammengezaehlt():
+    md = await _staatsangehoerigkeiten(schulgemeinde="Zürich-Letzi", top_n=3)
+    assert "Schulträger: Zürich-Letzi" in md
+    assert "Zusammengezählt" not in md
+
+
 @pytest.mark.asyncio
 async def test_not_found_returns_helpful_message():
     """Unbekannte Schulgemeinde gibt hilfreiche Fehlermeldung zurück."""

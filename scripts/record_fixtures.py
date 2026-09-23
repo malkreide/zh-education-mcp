@@ -73,11 +73,15 @@ RECIPES = [
     (
         "nat_regional",
         "data_lernende_regelschule_regional_staatsangehoerigkeit",
-        "Schulgemeinde Zuerich-Letzi, juengster Jahrgang",
+        # Andelfingen, weil dort zwei Traeger denselben Namen tragen
+        # (Primar- und Sekundarschulgemeinde): der Fall, den das Tool
+        # zusammenzaehlen muss.
+        "Schultraeger Zuerich-Letzi und Andelfingen, juengster Jahrgang",
         lambda rows: [
             r
             for r in rows
-            if _get(r, "schulgemeinde") == "Zürich-Letzi" and _get(r, "jahr") == _latest_year(rows)
+            if _get(r, "schultraeger") in {"Zürich-Letzi", "Andelfingen"}
+            and _get(r, "jahr") == _latest_year(rows)
         ],
     ),
     (

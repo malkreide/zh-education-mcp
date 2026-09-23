@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Behoben
+
+- **UTF-8-BOM der BISTA-Antworten.** Seit spaetestens 21.9.2026 beginnen alle
+  sechs Datensaetze mit `EF BB BF` bei unveraendertem `charset=utf-8`; das BOM
+  landete im ersten Spaltennamen. `zh_edu_wohnort_trend` (erste Spalte `jahr`)
+  war dadurch ausgefallen. `_fetch_csv` entfernt es jetzt vor dem Parsen.
+- **`zh_edu_staatsangehoerigkeiten` nach Schultraeger.** BISTA fuehrt den
+  Datensatz seit September 2026 nach `schultraeger` statt `schulgemeinde`; das
+  Tool war ausgefallen. In Gemeinden mit getrennter Primar- und
+  Sekundarschulgemeinde stehen nun zwei Traeger unter einem Namen. Das Tool
+  zaehlt je Staatsangehoerigkeit ueber alle getroffenen Traeger zusammen und
+  nennt jeden mit Typ und Code. Teilweise unterdrueckte Summen erscheinen als
+  «n + k× 1 bis 5» statt als scheinbar exakte Zahl. JSON: `results` sind jetzt
+  aggregierte Eintraege (`anzahl`, `unterdrueckte_zeilen`), dazu `schultraeger`.
+- Fixtures am 23.9.2026 neu aufgezeichnet; `nat_regional.csv` traegt
+  zusaetzlich Andelfingen als Zwei-Traeger-Fall.
+
 ### Entfernt
 
 - **`RELEASE_NOTES_v0.3.0.md`.** Die Datei entstand bei der Release-Vorbereitung

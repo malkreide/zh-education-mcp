@@ -508,6 +508,70 @@ async def zh_edu_sek1_profil(params: Sek1ProfilInput, ctx: Context | None = None
 # ══════════════════════════════════════════════════════════════════════════════
 
 
+def _schultraeger_of(rows: list[dict]) -> list[dict]:
+    """Die Schulträger hinter den Zeilen, je einmal, nach Code sortiert.
+
+    Seit September 2026 führt BISTA den Datensatz zu Staatsangehörigkeiten
+    nicht mehr nach Schulgemeinde, sondern nach Schulträger. In Gemeinden mit
+    getrennter Primar- und Sekundarschulgemeinde stehen damit **zwei** Träger
+    unter demselben Namen (am 23.9.2026 etwa Andelfingen: K023
+    Primarschulgemeinde, K031 Sekundarschulgemeinde). Wer zusammenzählt, muss
+    sagen, was er zusammengezählt hat.
+    """
+    seen: dict[str, dict] = {}
+    for r in rows:
+        code = r.get("schultraeger_code", "")
+        seen.setdefault(
+            code,
+            {
+                "schultraeger": r.get("schultraeger", ""),
+                "schultraeger_typ": r.get("schultraeger_typ") or "ohne Angabe",
+                "schultraeger_code": code,
+            },
+        )
+    return [seen[c] for c in sorted(seen)]
+
+
+def _traeger_line(traeger: list[dict]) -> str:
+    """Eine Zeile, die sagt, über welche Träger die Werte laufen."""
+    parts = [
+        f"{t['schultraeger']} ({t['schultraeger_typ']}, {t['schultraeger_code']})" for t in traeger
+    ]
+    if len(traeger) == 1:
+        return f"Schulträger: {parts[0]}\n"
+    return f"Zusammengezählt über {len(traeger)} Schulträger: {'; '.join(parts)}\n"
+
+
+def _sum_by_nationality(rows: list[dict]) -> list[dict]:
+    """Zählt je Staatsangehörigkeit über alle Schulträger zusammen.
+
+    Ohne das erschiene «Schweiz» in einer Gemeinde mit zwei Trägern zweimal in
+    der Rangliste, je mit einem Teilwert. Unterdrückte Werte («1 bis 5») werden
+    nicht als 0 und nicht als Zahl mitgezählt, sondern als Anzahl mitgeführt:
+    Eine Summe aus 8 und «1 bis 5» ist nicht 8, sondern 9 bis 13 (FID-003).
+
+    Sortiert nach bekanntem Wert absteigend; reine Unterdrückungen ans Ende.
+    """
+    acc: dict[str, dict] = {}
+    for r in rows:
+        nat = r.get("staatsangehoerigkeit", "Unbekannt")
+        entry = acc.setdefault(
+            nat,
+            {
+                "staatsangehoerigkeit": nat,
+                "staatsangehoerigkeit_iso2_code": r.get("staatsangehoerigkeit_iso2_code", ""),
+                "anzahl": 0,
+                "unterdrueckte_zeilen": 0,
+            },
+        )
+        n = _parse_count(r.get("anzahl"))
+        if n is None:
+            entry["unterdrueckte_zeilen"] += 1
+        else:
+            entry["anzahl"] += n
+    return sorted(acc.values(), key=lambda e: (e["anzahl"] == 0, -e["anzahl"]))
+
+
 @mcp.tool(
     name="zh_edu_staatsangehoerigkeiten",
     annotations={
@@ -527,6 +591,11 @@ async def zh_edu_staatsangehoerigkeiten(
     Liefert die häufigsten Nationalitäten der Schüler·innen in einer
     Schulgemeinde, inkl. ISO2-Ländercode und Anteil.
 
+    BISTA führt diese Zahlen nach Schulträger. Hat eine Gemeinde getrennte
+    Primar- und Sekundarschulgemeinden, oder trifft der Name mehrere Träger,
+    werden die Werte je Staatsangehörigkeit zusammengezählt; die Antwort nennt
+    jeden einbezogenen Träger mit Typ und Code.
+
     Args:
         params (StaatsangehoerigkeitInput):
             - schulgemeinde (str): Schulgemeinde (z. B. 'Zürich-Letzi')
@@ -535,11 +604,12 @@ async def zh_edu_staatsangehoerigkeiten(
             - response_format: 'markdown' oder 'json'
 
     Returns:
-        str: Rangliste der häufigsten Nationalitäten mit Anteil.
+        str: Rangliste der häufigsten Nationalitäten mit Anteil und den
+        einbezogenen Schulträgern.
     """
     try:
         rows = await _fetch_csv(EP_NAT_REGIONAL, ctx)
-        matched = _filter_rows(rows, schulgemeinde=params.schulgemeinde)
+        matched = _filter_rows(rows, schultraeger=params.schulgemeinde)
 
         if not matched:
             return _not_found(
@@ -554,37 +624,42 @@ async def zh_edu_staatsangehoerigkeiten(
             return "Keine Jahresdaten verfügbar."
 
         year_data = [r for r in matched if r.get("jahr") == str(jahr)]
-        # Unterdrueckte Werte ans Ende, nicht als 0 mitten hinein sortiert.
-        year_data.sort(
-            key=lambda r: (
-                _parse_count(r.get("anzahl")) is None,
-                -(_parse_count(r.get("anzahl")) or 0),
-            )
-        )
-        top = year_data[: params.top_n]
+        traeger = _schultraeger_of(year_data)
+        nats = _sum_by_nationality(year_data)
+        top = nats[: params.top_n]
 
         if params.response_format == ResponseFormat.JSON:
-            return _envelope(top, schulgemeinde=params.schulgemeinde, jahr=jahr, top_n=params.top_n)
+            return _envelope(
+                top,
+                schulgemeinde=params.schulgemeinde,
+                jahr=jahr,
+                top_n=params.top_n,
+                schultraeger=traeger,
+            )
 
-        counts = [_parse_count(r.get("anzahl")) for r in year_data]
-        suppressed = sum(1 for n in counts if n is None)
-        total = sum(n for n in counts if n is not None)
+        suppressed = sum(n["unterdrueckte_zeilen"] for n in nats)
+        total = sum(n["anzahl"] for n in nats)
         lines = [f"# Staatsangehörigkeiten {params.schulgemeinde} — {jahr}\n"]
+        lines.append(_traeger_line(traeger))
         lines.append(
-            f"Top {params.top_n} von {len(year_data)} Nationalitäten (Total: {total:,} Lernende)\n"
+            f"Top {params.top_n} von {len(nats)} Nationalitäten (Total: {total:,} Lernende)\n"
         )
         lines.append("| # | Staatsangehörigkeit | ISO2 | Lernende | Anteil |")
         lines.append("|---|---------------------|------|--------:|-------:|")
 
-        for i, r in enumerate(top, 1):
-            nat = r.get("staatsangehoerigkeit", "Unbekannt")
-            iso2 = r.get("staatsangehoerigkeit_iso2_code", "—")
-            anzahl = _parse_count(r.get("anzahl"))
-            if anzahl is None:
-                lines.append(f"| {i} | {nat} | {iso2} | 1 bis 5 | — |")
-                continue
-            pct = f"{anzahl / total * 100:.1f}%" if total > 0 else "—"
-            lines.append(f"| {i} | {nat} | {iso2} | {anzahl:,} | {pct} |")
+        for i, n in enumerate(top, 1):
+            nat, iso2 = n["staatsangehoerigkeit"], n["staatsangehoerigkeit_iso2_code"] or "—"
+            known, supp = n["anzahl"], n["unterdrueckte_zeilen"]
+            if not supp:
+                cell = f"{known:,}"
+            elif not known:
+                cell = "1 bis 5" if supp == 1 else f"{supp}× 1 bis 5"
+            else:
+                cell = f"{known:,} + {supp}× 1 bis 5"
+            pct = f"{known / total * 100:.1f}%" if known and total > 0 else "—"
+            if known and supp:
+                pct = f"≥ {pct}"
+            lines.append(f"| {i} | {nat} | {iso2} | {cell} | {pct} |")
 
         note = _suppression_note(suppressed, len(year_data))
         if note:
