@@ -105,7 +105,11 @@ _READ_FIELDS: dict[str, frozenset[str]] = {
     EP_NAT_REGIONAL: frozenset(
         {
             "jahr",
-            "schulgemeinde",
+            # Seit September 2026 `schultraeger` statt `schulgemeinde`; siehe
+            # `tools._schultraeger_of`.
+            "schultraeger",
+            "schultraeger_code",
+            "schultraeger_typ",
             "staatsangehoerigkeit",
             "staatsangehoerigkeit_iso2_code",
             "anzahl",
