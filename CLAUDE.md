@@ -133,8 +133,7 @@ geantwortet hat.
   nachdem eine Abfrage der Checks eines PR sauber durchlief, meldete die
   Label-Abfrage weiter die Sperre. Von einem blockierten Werkzeug also nicht
   auf «GitHub ist zu» schliessen — und umgekehrt eine gelungene Abfrage nicht
-  als Entwarnung für die gesperrte nehmen. Das ist dieselbe Asymmetrie wie
-  bei der verschwundenen Codex-Meldung weiter unten.
+  als Entwarnung für die gesperrte nehmen.
 
 Wann die Sperre fällt, geben diese Beobachtungen nicht her. Die Meldung nennt
 keinen Zeitpunkt, und die `X-RateLimit`-Kopfzeilen sind hinter dem Proxy nicht
@@ -210,8 +209,6 @@ etwas geändert hätte. Den Fall gezielt wählen und beide Zweige fahren.
 PR ohne jeden Check ist selten ein Repo ohne CI, meistens ein
 Merge-Konflikt: GitHub berechnet dafür keinen Merge-Commit und startet nichts.
 
-Ein Codex-Review auf einem PR wird beantwortet oder behoben, nie ignoriert.
-
 Nicht jede Fehlmeldung ist rot. `git push origin --delete <branch>` scheitert in
 der Claude-Code-Umgebung am Agent-Proxy und schliesst mit «Everything
 up-to-date» — die Meldung, die es sonst gibt, wenn nichts zu tun war. Der Grund
@@ -221,220 +218,6 @@ not permitted through this proxy». Gesperrt sind löschende Operationen, nicht
 gewöhnliche Pushes. Also nicht mit Backoff wiederholen — es ist kein Netzproblem
 — sondern lokal oder über die GitHub-Oberfläche löschen. Am 19.8.2026 gemessen:
 fünf Versuche, fünfmal dieselbe 403.
-
-### Wenn Codex gar nicht erst hinsieht
-
-Die Zeile oben unterstellt, dass es einen Befund geben *kann*. Das ist nicht
-immer so, und man sieht es dem PR nicht an.
-
-Am 21.8.2026 war das Code-Review-Kontingent zwischen 08:41 und 09:48
-aufgebraucht — davor echte Reviews, danach in 30 Repos nur noch:
-
-```
-You have reached your Codex usage limits for code reviews.
-```
-
-Wie lange die Sperre dauerte, geben die Beobachtungen nur als Spanne her. Vier
-Zeitpunkte sind belegt: letzter gelungener Review am 21.8. um 08:41, erste
-Limit-Meldung um 09:48, letzte beobachtete Limit-Meldung am 22.8. um 11:03,
-erste *andere* Meldung am 23.8. um 08:22.
-
-Zwischen erster und letzter Limit-Meldung liegen **25 h 15 min**. Das ist der
-Abstand zweier Fehlschläge, nicht die Dauer einer Sperre. Wer ihn Untergrenze
-nennt, hat die durchgehende Erschöpfung schon vorausgesetzt, die er belegen
-soll: Öffnete sich das Fenster zwischendurch und schloss es sich durch neue
-Auslöser wieder, waren es zwei kurze Sperren und nie eine von 25 Stunden.
-Untergrenze einer *einzelnen* Sperre sind die 25 h 15 min nur unter genau dieser
-Annahme — und die ist unbelegt.
-
-Nach oben trägt die Rechnung dagegen. Die längste mit den Beobachtungen
-verträgliche Sperre reicht vom letzten Erfolg um 08:41 bis zur abweichenden
-Meldung um 08:22, also **47 h 41 min**; länger kann keine einzelne gewesen sein.
-Wer stattdessen ab der ersten Limit-Meldung rechnet, unterschlägt die 67
-Minuten, in denen das Kontingent schon weg gewesen sein kann, und nennt die
-Spanne zwischen zwei Beobachtungen eine Obergrenze.
-
-Beobachtungspunkte sind keine Messreihe — die 21 Stunden vor der abweichenden
-Meldung liefen ganz ohne Codex-Auslöser, dort hat niemand gemessen.
-
-In der Zwischenzeit sind 32 PRs mit formal erfülltem Häkchen gemergt worden,
-ohne dass jemand hineingesehen hat, und am 22.8. noch einmal 43.
-
-**Vier** Gründe, warum Codex schweigt, und nur einer davon ist harmlos:
-
-- **Kein Befund** — dafür gibt es **zwei** Formen, und die zweite stand hier
-  lange nicht. Die erste ist ein gewöhnlicher Issue-Kommentar:
-
-  ```
-  Codex Review: Didn't find any major issues. Swish!
-  ```
-
-  Der Schlusssatz wechselt bei jedem Lauf («Delightful!», «Keep it up!»,
-  «More of your lovely PRs please.»); stabil ist nur der Satz davor. Der
-  Infokasten, den Codex unter jeden Review setzt, behauptet weiterhin eine
-  Reaktion («otherwise it will react with 👍») — am 23.8. kam in sechs Repos
-  die Meldung und in keinem die Reaktion. Der Kasten ist keine Quelle.
-
-  Die zweite Form ist die **Review-Summary mit Statuszeile** (siehe unten).
-  Sie ist kein fünfter *Grund* — der Grund ist derselbe, «kein Befund» —,
-  sondern ein zweiter Träger derselben Auskunft.
-- **Der PR ist ein Draft** — darauf läuft Codex nicht an.
-- **Das Kontingent ist weg** — dann schreibt er die Meldung oben.
-- **Für das Repo fehlt eine Environment** — dann schreibt er:
-
-  ```
-  To use Codex here, create an environment for this repo.
-  ```
-
-Der vierte kam erst zum Vorschein, als der dritte wegfiel, und das ist kein
-Zufall: Die Prüfungen liegen hintereinander. Dass es diese Reihenfolge ist und
-nicht die umgekehrte, lässt sich an einem einzigen Repo ablesen — in
-`swiss-public-data-mcp` bekam PR #54 am 22.8. um 10:56:55 die Kontingent-Meldung
-und PR #56 am 23.8. um 08:22:20 die Environment-Meldung. Läge die
-Environment-Prüfung vorn, hätte #54 sie schon am Vortag gesehen; die Environment
-fehlte ja bereits. Zwei Meldungen aus demselben Repo schlagen hier jede
-Vermutung über die Reihenfolge.
-
-Praktisch heisst das: **Eine verschwundene Limit-Meldung ist keine Entwarnung.**
-Sie kann bedeuten, dass das Kontingent wieder da ist — und dass jetzt etwas
-anderes den Review verhindert. Belegt ist eine Prüfung erst durch ein
-Review-Objekt, eine Befundlos-Meldung **oder** eine Review-Summary, deren
-Statuszeile auf `Completed` steht. Wer nur das Objekt gelten lässt,
-zählt jeden befundlosen Review als ungeprüft — und baut sich denselben Fehlalarm
-ein, den dieser Abschnitt verhindern soll, nur in die andere Richtung.
-
-«Kein Kommentar» heisst also nicht «geprüft und sauber». Unterscheiden lässt es
-sich an der Form: Ein Review **mit** Befund ist ein Review-Objekt
-(«💡 Codex Review», mit Commit-Angabe); ein Review **ohne** Befund und die
-beiden Ausfallmeldungen — Kontingent wie Environment — sind gewöhnliche
-Issue-Kommentare und trennen sich nur im Text. Beim Draft gibt es überhaupt
-nichts, weil Codex nicht anläuft; ein kommentarloser Draft ist deshalb kein
-Beleg, sondern ein nicht durchgeführter Test.
-
-Das sind verschiedene Abfragen — `get_reviews` fürs Objekt, `get_comments` für
-alles andere; wer nur eine nimmt, übersieht den Rest. Genau so ist die
-Limit-Meldung zuerst durchgerutscht.
-
-**Die Review-Summary ist ein Signal, das seinen Text ändert.** Am 18.–20.9.2026
-kam in `zh-education-mcp` bei drei befundlosen Läufen **keine** der oben
-beschriebenen Formen. Statt eines Review-Objekts und statt der
-«Swish»-Meldung stand dort ein Issue-Kommentar mit einer Statustabelle:
-
-```
-<!-- codex-pull-request-review-summary -->
-
-## Codex Review Summary
-
-| Review | Status | Commit | Review trigger |
-| --- | --- | --- | --- |
-| 📝 **Code Review** | ✅ **Completed** <Zeitstempel> | `<sha>` | Draft marked ready |
-```
-
-Während des Laufs steht in derselben Zelle `🔄 **Running** since <Zeitstempel>`.
-Es ist **derselbe Kommentar**, nur aktualisiert: gleiche `id`, `created_at`
-unverändert, `updated_at` wandert. Daraus folgen drei Dinge, die keine der
-bisherigen Formen hat:
-
-- **Eine Abfrage ist eine Momentaufnahme, kein Urteil.** Wer «Running» liest
-  und daraus schliesst, der Lauf sei gestorben, hat die Zukunft geraten statt
-  etwas gemessen. Genau so ist am 18.9. bei PR #86 ein befundloser Review als
-  «ungeprüft gemergt» in die Notizen geraten und musste zurückgenommen werden.
-- **Der Wechsel legt keinen neuen Kommentar an.** Wer darauf wartet, dass
-  «etwas Neues erscheint», wartet vergeblich: Der Zähler bleibt bei 1, nur der
-  Text darunter wechselt. Ob das Umspringen ein Webhook-Ereignis auslöst, ist
-  hier **nicht gemessen** — in allen fünf Fällen war der PR längst gemergt und
-  das Aktivitäts-Abo beendet, bevor die Summary überhaupt erschien. Wer sich
-  darauf verlassen will, misst es an einem offenen PR nach.
-- **Der Marker ist stabiler als der Text.** `codex-pull-request-review-summary`
-  im HTML-Kommentar identifiziert die Summary unabhängig von Sprache, Emoji
-  und Tabellenbau.
-
-Gemessen, fünf Läufe, alle befundlos und alle gegen den bereits gemergten
-Commit:
-
-| PR | Start (UTC) | `Completed` | Dauer | Commit |
-|---|---|---|---|---|
-| #86, 18.9. | 18:22:59 | 18:24:03 | 64 s | `d19d00b` |
-| #87, 19.9. | 17:11:17 | 17:12:30 | 73 s | `f72cf4a` |
-| #88, 20.9. | 08:06:45 | 08:07:42 | 57 s | `65716b3` |
-| #91, 23.9. | 16:47:42 | 16:48:54 | 72 s | `e6dd568` |
-| #92, 23.9. | 17:35:25 | 17:36:39 | 74 s | `480d57e` |
-
-Was diese fünf Läufe **nicht** hergeben: ob die «Swish»-Meldung abgelöst ist
-oder ob beide Formen nebeneinander vorkommen. Fünf Läufe in einem Repo an vier
-Tagen sind kein Beleg für das Portfolio. Beide Formen stehen deshalb oben, und
-beide gelten. Die 👍-Reaktion blieb übrigens auch hier jedes Mal aus
-(`reactions.total_count` = 0, alle fünf Male) — dritter Beleg dafür, dass der
-Infokasten keine Quelle ist.
-
-Der Kommentarzähler allein reicht ohnehin nicht: `comments: 1` kann die
-Befundlos-, die Kontingent-, die Environment-Meldung **oder** eine
-Review-Summary sein — und die Summary wiederum «Running» oder «Completed», also
-«läuft noch» oder «sauber». Vier gegensätzliche Bedeutungen unter derselben
-Zahl, eine davon zeitabhängig. Den Text lesen, nicht die Zahl.
-Und einen unbekannten Text wörtlich zitieren, statt ihn in eine der
-bekannten Schubladen zu zwingen: Dieser Abschnitt musste schon einmal von drei
-auf vier Gründe wachsen, dann um eine zweite Form von «kein Befund», und die
-👍-Reaktion stand hier zwei Fassungen lang als Tatsache.
-
-Und ein befundloser Lauf ist kein Freispruch. Am 23.8. lief derselbe Text durch
-42 Reviews: 36 meldeten denselben P2-Befund, 6 die Befundlos-Meldung — gleiche
-Eingabe, gegenteiliges Urteil, alles in denselben neun Minuten. Ein sauberer
-Lauf sagt damit etwas über den Lauf, nicht über den Text. Wer sein Häkchen
-daran hängt, hängt es an einen Münzwurf.
-
-Portfolio-weit nachsehen:
-
-```
-search_pull_requests: user:malkreide commenter:chatgpt-codex-connector[bot] updated:>=<Datum>
-```
-
-Findet nur, wo er *kommentiert* hat. Repos ohne PR-Aktivität tauchen nicht auf
-— das ist kein Beleg, dass dort geprüft wurde.
-
-Zweiter Weg, den Prüfer zu verlieren, ganz ohne Kontingentproblem: zu schnell
-mergen. Am 21./22.8. lagen zwischen «ready for review» und Merge mehrfach drei
-bis fünf Sekunden. Codex wird beim Umschalten von Draft auf ready ausgelöst und
-braucht danach Zeit; wer sofort mergt, hat das Häkchen gesetzt und den Review
-nicht abgewartet.
-
-**Der Review geht dabei nicht verloren — er kommt zu spät.** Bei #86, #87,
-#88, #91 und #92 startete Codex jedes Mal zwei bis acht Sekunden **nach** dem
-Merge und lief trotzdem gegen den gemergten Commit durch (Tabelle oben; #91
-gemergt 16:47:37, #92 um 17:35:17). Das ist die gefährlichere Variante: Nicht
-«kein Review», sondern ein Review, dessen Befund in `main` landen würde statt
-im PR. Alle fünf kamen sauber zurück; das ist ein Ergebnis, kein Verfahren.
-
-**Eine feste Wartezeit genügt nicht; die Statuszeile entscheidet.** Hier stand
-einmal «eine Minute zwischen ready und Merge». Die Messungen widerlegen das:
-Allein die Laufzeit reicht bis 74 s, und dazu kommt der Anlauf. Von «ready» bis
-`Completed` waren es bei #91 80 s (16:47:34 → 16:48:54) und bei #92 85 s
-(17:35:14 → 17:36:39; «ready» jeweils als Zeit des Webhook-Ereignisses) —
-beide Male hätte eine Minute den Befund verpasst. Wer mergt, liest vorher die
-Summary: Steht sie auf `Completed`, ist der Lauf durch; steht sie auf
-`Running` oder fehlt sie noch, ist er es nicht. Fünf Läufe sind keine
-Verteilung, eine Obergrenze geben sie nicht her.
-
-Das Kontingent hängt am Konto, nicht am Repo, und Code-Reviews haben einen
-eigenen Topf — nur GitHub-getriggerte Reviews zählen hinein. ChatGPT-Pläne
-fahren ein rollendes Fünf-Stunden-Fenster plus Wochenlimits; welches greift,
-steht im Codex-Dashboard. Welches hier griff, ist **offen**. Die Lücke oben
-schliesst das Fünf-Stunden-Fenster nicht aus: Es kann sich zwischendurch
-geöffnet und durch neue Auslöser wieder erschöpft haben. Das auszuschliessen
-bräuchte den Nachweis, dass in der ganzen Spanne kein einziger Review durchlief
-— den gibt es nicht, weil nur Fehlschläge beobachtet wurden. Eine lange Reihe
-von Fehlschlägen belegt eine lange Reihe von Fehlschlägen, nicht ihre Ursache.
-
-Zeigt das Dashboard freies Kontingent, während Reviews weiter scheitern, ist
-das ein bekannter Fehler bei mehreren verbundenen Konten — dann den
-GitHub-Connector in den Codex-Einstellungen trennen und neu verbinden.
-
-Die Environment legt man unter `chatgpt.com/codex/cloud/settings/environments`
-an, und zwar **je Repo**. Die Meldung sagt es selbst («for this repo»), und am
-23.8. war es genau so: In `swiss-public-data-mcp` fehlte sie, dort kam kein
-Review; in den übrigen Repos lief Codex am selben Morgen durch. Eine
-Environment fürs Konto genügt also nicht — wer eine anlegt und den Rest für
-erledigt hält, mergt weiter Ungeprüftes.
 
 ### Wenn zwei Agenten dasselbe tun
 
@@ -465,7 +248,6 @@ Dieselbe Klasse wie der handgeschriebene Stub, der denselben Feldnamen annahm
 wie der Code: Nichts ist rot, weil nichts geprüft wird, worauf es ankommt.
 
 ## Teil 2 — Dieses Repo
-
 
 **ruff: eine Quelle.** `pyproject.toml`, `dev`-Extra, dort exakt gepinnt.
 Die Version steht bewusst nicht hier: Diese Zeile nannte `0.16.3`, als der Pin
