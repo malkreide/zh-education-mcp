@@ -342,14 +342,14 @@ bisherigen Formen hat:
 - **Der Wechsel legt keinen neuen Kommentar an.** Wer darauf wartet, dass
   «etwas Neues erscheint», wartet vergeblich: Der Zähler bleibt bei 1, nur der
   Text darunter wechselt. Ob das Umspringen ein Webhook-Ereignis auslöst, ist
-  hier **nicht gemessen** — in allen drei Fällen war der PR längst gemergt und
+  hier **nicht gemessen** — in allen fünf Fällen war der PR längst gemergt und
   das Aktivitäts-Abo beendet, bevor die Summary überhaupt erschien. Wer sich
   darauf verlassen will, misst es an einem offenen PR nach.
 - **Der Marker ist stabiler als der Text.** `codex-pull-request-review-summary`
   im HTML-Kommentar identifiziert die Summary unabhängig von Sprache, Emoji
   und Tabellenbau.
 
-Gemessen, drei Läufe, alle befundlos und alle gegen den bereits gemergten
+Gemessen, fünf Läufe, alle befundlos und alle gegen den bereits gemergten
 Commit:
 
 | PR | Start (UTC) | `Completed` | Dauer | Commit |
@@ -357,13 +357,15 @@ Commit:
 | #86, 18.9. | 18:22:59 | 18:24:03 | 64 s | `d19d00b` |
 | #87, 19.9. | 17:11:17 | 17:12:30 | 73 s | `f72cf4a` |
 | #88, 20.9. | 08:06:45 | 08:07:42 | 57 s | `65716b3` |
+| #91, 23.9. | 16:47:42 | 16:48:54 | 72 s | `e6dd568` |
+| #92, 23.9. | 17:35:25 | 17:36:39 | 74 s | `480d57e` |
 
-Was diese drei Läufe **nicht** hergeben: ob die «Swish»-Meldung abgelöst ist
-oder ob beide Formen nebeneinander vorkommen. Drei Läufe in einem Repo an drei
+Was diese fünf Läufe **nicht** hergeben: ob die «Swish»-Meldung abgelöst ist
+oder ob beide Formen nebeneinander vorkommen. Fünf Läufe in einem Repo an vier
 Tagen sind kein Beleg für das Portfolio. Beide Formen stehen deshalb oben, und
 beide gelten. Die 👍-Reaktion blieb übrigens auch hier jedes Mal aus
-(`reactions.total_count` = 0) — dritter Beleg dafür, dass der Infokasten keine
-Quelle ist.
+(`reactions.total_count` = 0, alle fünf Male) — dritter Beleg dafür, dass der
+Infokasten keine Quelle ist.
 
 Der Kommentarzähler allein reicht ohnehin nicht: `comments: 1` kann die
 Befundlos-, die Kontingent-, die Environment-Meldung **oder** eine
@@ -396,13 +398,22 @@ bis fünf Sekunden. Codex wird beim Umschalten von Draft auf ready ausgelöst un
 braucht danach Zeit; wer sofort mergt, hat das Häkchen gesetzt und den Review
 nicht abgewartet.
 
-**Der Review geht dabei nicht verloren — er kommt zu spät.** Bei #86, #87 und
-#88 startete Codex jedes Mal zwei bis vier Sekunden **nach** dem Merge und lief
-trotzdem gegen den gemergten Commit durch (Tabelle oben). Das ist die
-gefährlichere Variante: Nicht «kein Review», sondern ein Review, dessen Befund
-in `main` landen würde statt im PR. Alle drei kamen sauber zurück; das ist ein
-Ergebnis, kein Verfahren. Eine Minute zwischen ready und Merge deckt das
-Häkchen, statt es nur zu setzen.
+**Der Review geht dabei nicht verloren — er kommt zu spät.** Bei #86, #87,
+#88, #91 und #92 startete Codex jedes Mal zwei bis acht Sekunden **nach** dem
+Merge und lief trotzdem gegen den gemergten Commit durch (Tabelle oben; #91
+gemergt 16:47:37, #92 um 17:35:17). Das ist die gefährlichere Variante: Nicht
+«kein Review», sondern ein Review, dessen Befund in `main` landen würde statt
+im PR. Alle fünf kamen sauber zurück; das ist ein Ergebnis, kein Verfahren.
+
+**Eine feste Wartezeit genügt nicht; die Statuszeile entscheidet.** Hier stand
+einmal «eine Minute zwischen ready und Merge». Die Messungen widerlegen das:
+Allein die Laufzeit reicht bis 74 s, und dazu kommt der Anlauf. Von «ready» bis
+`Completed` waren es bei #91 80 s (16:47:34 → 16:48:54) und bei #92 85 s
+(17:35:14 → 17:36:39; «ready» jeweils als Zeit des Webhook-Ereignisses) —
+beide Male hätte eine Minute den Befund verpasst. Wer mergt, liest vorher die
+Summary: Steht sie auf `Completed`, ist der Lauf durch; steht sie auf
+`Running` oder fehlt sie noch, ist er es nicht. Fünf Läufe sind keine
+Verteilung, eine Obergrenze geben sie nicht her.
 
 Das Kontingent hängt am Konto, nicht am Repo, und Code-Reviews haben einen
 eigenen Topf — nur GitHub-getriggerte Reviews zählen hinein. ChatGPT-Pläne
@@ -456,10 +467,13 @@ wie der Code: Nichts ist rot, weil nichts geprüft wird, worauf es ankommt.
 ## Teil 2 — Dieses Repo
 
 
-**ruff: eine Quelle.** `pyproject.toml`, `dev`-Extra, `ruff==0.16.3`. Die CI
-hat keinen eigenen Pin-Schritt — der Install über `ci.yml` genügt, lokal wie
-dort. Eine `.pre-commit-config.yaml` gibt es nicht; wenn eine dazukommt, muss
-sie dieselbe Version aus `pyproject.toml` beziehen und keine zweite nennen.
+**ruff: eine Quelle.** `pyproject.toml`, `dev`-Extra, dort exakt gepinnt.
+Die Version steht bewusst nicht hier: Diese Zeile nannte `0.16.3`, als der Pin
+längst auf `0.16.5` stand — eine zweite Nennung ist eine zweite Quelle, und die
+veraltet still. Die CI hat keinen eigenen Pin-Schritt — der Install über
+`ci.yml` genügt, lokal wie dort. Eine `.pre-commit-config.yaml` gibt es nicht;
+wenn eine dazukommt, muss sie dieselbe Version aus `pyproject.toml` beziehen
+und keine zweite nennen.
 
 Vor dem Lauf `ruff --version` prüfen: ein älteres ruff früher im `PATH`
 schlägt den Pin, ohne dass der Install etwas meldet.
