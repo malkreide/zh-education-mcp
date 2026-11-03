@@ -13,7 +13,14 @@ import pytest
 import respx
 
 from zh_education_mcp.constants import BISTA_API, EP_SEK1
-from zh_education_mcp.data import _normalise_keys, _parse_count, _suppression_note
+from zh_education_mcp.data import (
+    UpstreamDataError,
+    _handle_error,
+    _normalise_keys,
+    _parse_count,
+    _row_count,
+    _suppression_note,
+)
 
 URL = f"{BISTA_API}/{EP_SEK1}"
 
@@ -118,6 +125,35 @@ class TestParseCount:
         """
         assert _parse_count("1 bis 5") is None
         assert _parse_count("0") == 0, "eine echte Null ist etwas anderes als keine Angabe"
+
+
+class TestRowCount:
+    """``obs_status`` (seit November 2026 in zwei Datensätzen) entscheidet vor der Zelle."""
+
+    @pytest.mark.parametrize("anzahl", ["", "7", "1 bis 5"])
+    def test_q_is_suppressed_whatever_the_cell_says(self, anzahl):
+        assert _row_count({"anzahl": anzahl, "obs_status": "Q"}) is None
+
+    def test_a_with_a_number_is_that_number(self):
+        assert _row_count({"anzahl": "107", "obs_status": "A"}) == 107
+
+    @pytest.mark.parametrize("status", ["A", "X"])
+    def test_a_valid_status_without_a_number_is_a_data_error(self, status):
+        """Als «1 bis 5» ausgegeben wäre das eine erfundene Auskunft."""
+        with pytest.raises(UpstreamDataError):
+            _row_count({"anzahl": "", "obs_status": status, "jahr": "2025"})
+
+    @pytest.mark.parametrize("anzahl", ["1 bis 5", "NULL", ""])
+    def test_without_the_column_the_old_rule_holds(self, anzahl):
+        """Vier Datensätze führen kein ``obs_status``; dort bleibt es beim Alten."""
+        assert _row_count({"anzahl": anzahl}) is None
+        assert _row_count({"anzahl": "42"}) == 42
+
+    def test_the_data_error_is_named_and_not_retried(self):
+        """Ein deterministischer Fehler bekommt keinen «bitte später»-Rat."""
+        msg = _handle_error(UpstreamDataError("x"))
+        assert "Datenfehler der Quelle" in msg
+        assert "erneut" not in msg
 
 
 SUPPRESSED_CSV = """stand,kanton,jahr,schulgemeinde,anforderungstyp,anzahl

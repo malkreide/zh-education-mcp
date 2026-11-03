@@ -74,6 +74,16 @@ def _handle_error(e: Exception) -> str:
         )
     if isinstance(e, PermissionError):
         return "Fehler: Ausgehende Anfrage durch Egress-Policy blockiert."
+    # Vor dem Sammelzweig, weil «bitte später erneut» hier falsch wäre: Die
+    # Quelle hat geantwortet, und dieselbe Abfrage liefert morgen dieselbe
+    # widersprüchliche Zelle. Ein deterministischer Fehler bekommt keinen
+    # Wiederholungsrat.
+    if isinstance(e, UpstreamDataError):
+        return (
+            "Fehler: BISTA liefert einen Zählwert, der als gültig markiert ist "
+            "(`obs_status`), aber keine Zahl enthält. Das ist ein Datenfehler der "
+            "Quelle; der Server gibt dafür keine Zahl aus, statt eine zu raten."
+        )
     return "Fehler: Unerwarteter interner Fehler. Bitte später erneut versuchen."
 
 
@@ -83,6 +93,14 @@ class UpstreamSchemaError(RuntimeError):
     Von einem Netz- oder Egress-Fehler getrennt, weil die Behebung eine andere
     ist: Dort ist BISTA nicht erreichbar, hier hat BISTA geantwortet und seine
     Kopfzeile geändert.
+    """
+
+
+class UpstreamDataError(RuntimeError):
+    """Eine einzelne Zelle widerspricht sich selbst.
+
+    Nicht die Form der Antwort ist falsch (das wäre `UpstreamSchemaError`),
+    sondern ein Wert: `obs_status` sagt «gültig», `anzahl` enthält keine Zahl.
     """
 
 
@@ -244,9 +262,10 @@ def _filter_rows(rows: list[dict], **filters: str | int | None) -> list[dict]:
 def _parse_count(value: object) -> int | None:
     """Zahl aus einem BISTA-Zählwert, oder ``None``, wenn keine da ist.
 
-    BISTA unterdrückt kleine Fallzahlen aus Datenschutzgründen und schreibt
-    statt einer Zahl einen Bereich: ``1 bis 5``. Dazu kommt ``NULL`` und die
-    leere Zelle. Am 3. August 2026 waren das 18.6 % der Sek-I-Zeilen und
+    BISTA unterdrückt kleine Fallzahlen (1 bis 5) aus Datenschutzgründen. Bis
+    September 2026 stand dann der Bereich ``1 bis 5`` in der Zelle; zwei
+    Datensätze führen seither eine leere Zelle mit ``obs_status`` ``Q`` (siehe
+    `_row_count`). Dazu kommt ``NULL``. Am 3. August 2026 waren das 18.6 % der Sek-I-Zeilen und
     18.1 % der Staatsangehörigkeits-Zeilen — kein Randfall.
 
     ``int("1 bis 5")`` wirft, und der Aufrufer sah davon nur «unerwarteter
@@ -259,6 +278,38 @@ def _parse_count(value: object) -> int | None:
     return int(raw) if raw.isdigit() else None
 
 
+def _row_count(row: dict) -> int | None:
+    """Zählwert einer Zeile, mit ``obs_status``, wo die Quelle ihn liefert.
+
+    Am 2. November 2026 führten `data_lernende_sekundarstufe_i_anforderungstyp`
+    und `data_lernende_regelschule_regional_staatsangehoerigkeit` eine neue
+    Spalte ``obs_status`` (SDMX-Kennzeichen): ``A`` für einen normalen Wert,
+    ``Q`` für einen unterdrückten. Am 3.11. gegen die Aufnahme vom 23.9.
+    nachgemessen, 342 Zeilen: jede Zahl unverändert mit ``A``, jedes frühere
+    ``1 bis 5`` jetzt eine leere Zelle mit ``Q`` — ausnahmslos.
+
+    Vorher war «keine Zahl» das einzige Merkmal einer Unterdrückung. Das
+    reicht nicht mehr: Eine leere Zelle mit ``A`` ist keine Unterdrückung,
+    sondern ein Widerspruch, und als «1 bis 5» ausgegeben wäre sie eine
+    erfundene Auskunft. Deshalb:
+
+    - ``Q`` → ``None`` (unterdrückt), auch wenn eine Zahl dastünde;
+    - eine Zahl → die Zahl;
+    - keine Zahl, kein ``obs_status`` → ``None`` wie bisher (die vier
+      Datensätze ohne die Spalte schreiben weiter ``NULL`` oder nichts);
+    - keine Zahl, aber ein anderer ``obs_status`` → `UpstreamDataError`.
+    """
+    status = str(row.get("obs_status") or "").strip()
+    if status == "Q":
+        return None
+    n = _parse_count(row.get("anzahl"))
+    if n is None and status:
+        raise UpstreamDataError(
+            f"anzahl={row.get('anzahl')!r} bei obs_status={status!r} (jahr={row.get('jahr')!r})"
+        )
+    return n
+
+
 def _suppression_note(suppressed: int, total: int) -> str | None:
     """Hinweiszeile auf unterdrückte Werte, oder ``None``, wenn es keine gibt.
 
@@ -269,7 +320,7 @@ def _suppression_note(suppressed: int, total: int) -> str | None:
         return None
     return (
         f"\n> **Hinweis:** {suppressed} von {total} Zeilen enthalten keinen Zahlenwert "
-        f"(BISTA schreibt bei kleinen Fallzahlen «1 bis 5» statt einer Zahl). "
+        f"(BISTA weist kleine Fallzahlen von 1 bis 5 nicht als Zahl aus). "
         f"Sie sind in den Summen **nicht** enthalten; die echten Werte liegen "
         f"entsprechend höher."
     )

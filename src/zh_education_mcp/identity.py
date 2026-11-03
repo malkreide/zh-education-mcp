@@ -75,8 +75,8 @@ einzelnen Tool-Beschreibung:
 1. **Stichtag ist der 15. September.** Die Daten sind eine Jahresaufnahme, \
 keine Zeitreihe mit unterjährigen Werten. «Aktuell» heisst hier: das zuletzt \
 erhobene Schuljahr, nicht heute.
-2. **Kleine Fallzahlen sind unterdrückt.** BISTA schreibt «1 bis 5» statt \
-einer Zahl. Solche Zeilen fliessen nicht in Summen ein; eine Summe mit \
+2. **Kleine Fallzahlen sind unterdrückt.** BISTA weist Werte von 1 bis 5 \
+nicht als Zahl aus; die Antworten zeigen sie als «1 bis 5». Solche Zeilen fliessen nicht in Summen ein; eine Summe mit \
 Unterdrückungshinweis ist eine Untergrenze, keine Summe. Den Hinweis in der \
 Antwort mitgeben, statt ihn wegzukürzen.
 3. **Die Quelle ist zu nennen.** Die Daten stehen unter CC BY 4.0. Jede \

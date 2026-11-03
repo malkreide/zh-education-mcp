@@ -22,7 +22,7 @@ from .data import (
     _filter_rows,
     _handle_error,
     _latest_year,
-    _parse_count,
+    _row_count,
     _suppression_note,
 )
 from .http_client import lifespan
@@ -295,8 +295,8 @@ async def zh_edu_schulkreis_trend(params: SchulkreisTrendInput, ctx: Context | N
         for r in filtered:
             yr = int(r["jahr"])
             typ = r.get("anforderungstyp", "Unbekannt")
-            anzahl = _parse_count(r.get("anzahl"))
-            if anzahl is None:  # «1 bis 5» — unterdrueckt, nicht null
+            anzahl = _row_count(r)
+            if anzahl is None:  # unterdrueckt (1 bis 5), nicht null
                 suppressed += 1
                 continue
             by_year.setdefault(yr, {})[typ] = anzahl
@@ -389,7 +389,7 @@ async def zh_edu_overview(params: UebersichtInput, ctx: Context | None = None) -
         suppressed = 0
         for r in filtered:
             stufe = r.get("stufe", "Unbekannt")
-            anzahl = _parse_count(r.get("anzahl"))
+            anzahl = _row_count(r)
             if anzahl is None:
                 suppressed += 1
                 continue
@@ -480,7 +480,7 @@ async def zh_edu_sek1_profil(params: Sek1ProfilInput, ctx: Context | None = None
         lines.append("| Anforderungstyp | Lernende | Anteil |")
         lines.append("|-----------------|--------:|-------:|")
 
-        counted = [(r, _parse_count(r.get("anzahl"))) for r in year_data]
+        counted = [(r, _row_count(r)) for r in year_data]
         suppressed = sum(1 for _, n in counted if n is None)
         total = sum(n for _, n in counted if n is not None)
         for r, _n in sorted(counted, key=lambda p: (p[1] is None, -(p[1] or 0))):
@@ -564,7 +564,7 @@ def _sum_by_nationality(rows: list[dict]) -> list[dict]:
                 "unterdrueckte_zeilen": 0,
             },
         )
-        n = _parse_count(r.get("anzahl"))
+        n = _row_count(r)
         if n is None:
             entry["unterdrueckte_zeilen"] += 1
         else:
@@ -839,7 +839,7 @@ async def zh_edu_wohnort_trend(params: WohnortTrendInput, ctx: Context | None = 
         suppressed = 0
         for r in filtered:
             yr = int(r["jahr"])
-            n = _parse_count(r.get("anzahl"))
+            n = _row_count(r)
             if n is None:
                 suppressed += 1
                 continue
@@ -929,7 +929,7 @@ async def zh_edu_mittelschulen(params: MittelschulenInput, ctx: Context | None =
         suppressed = 0
         for r in filtered:
             typ = r.get("mittelschultyp", "Unbekannt")
-            n = _parse_count(r.get("anzahl"))
+            n = _row_count(r)
             if n is None:
                 suppressed += 1
                 continue

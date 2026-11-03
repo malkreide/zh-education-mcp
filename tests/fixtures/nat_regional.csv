@@ -1,66 +1,66 @@
-stand,kanton,jahr,schultraeger_code,schultraeger,schultraeger_typ,staatsangehoerigkeit,staatsangehoerigkeit_iso2_code,anzahl
-2026-09-23,zh,2025,K023,Andelfingen,Primarschulgemeinde,Schweiz,CH,422
-2026-09-23,zh,2025,K031,Andelfingen,Sekundarschulgemeinde,Schweiz,CH,261
-2026-09-23,zh,2025,K023,Andelfingen,Primarschulgemeinde,Ukraine,UA,15
-2026-09-23,zh,2025,K023,Andelfingen,Primarschulgemeinde,Deutschland,DE,11
-2026-09-23,zh,2025,K031,Andelfingen,Sekundarschulgemeinde,Ukraine,UA,9
-2026-09-23,zh,2025,K023,Andelfingen,Primarschulgemeinde,Portugal,PT,8
-2026-09-23,zh,2025,K023,Andelfingen,Primarschulgemeinde,Restliches Südosteuropa,,12
-2026-09-23,zh,2025,K031,Andelfingen,Sekundarschulgemeinde,Restliches Europa,,18
-2026-09-23,zh,2025,K023,Andelfingen,Primarschulgemeinde,Restliches Europa,,14
-2026-09-23,zh,2025,K023,Andelfingen,Primarschulgemeinde,Restliches Asien,,8
-2026-09-23,zh,2025,K031,Andelfingen,Sekundarschulgemeinde,Restliches Amerika,,1 bis 5
-2026-09-23,zh,2025,K023,Andelfingen,Primarschulgemeinde,Staatenlos,,1 bis 5
-2026-09-23,zh,2025,K031,Andelfingen,Sekundarschulgemeinde,Restliches Asien,,1 bis 5
-2026-09-23,zh,2025,K023,Andelfingen,Primarschulgemeinde,Restliches Amerika,,1 bis 5
-2026-09-23,zh,2025,K031,Andelfingen,Sekundarschulgemeinde,Restliches Afrika,,1 bis 5
-2026-09-23,zh,2025,K023,Andelfingen,Primarschulgemeinde,Restliches Afrika,,1 bis 5
-2026-09-23,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Schweiz,CH,3963
-2026-09-23,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Deutschland,DE,177
-2026-09-23,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Italien,IT,143
-2026-09-23,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Portugal,PT,119
-2026-09-23,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Spanien,ES,72
-2026-09-23,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Eritrea,ER,66
-2026-09-23,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Türkiye,TR,48
-2026-09-23,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Ukraine,UA,45
-2026-09-23,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Syrien,SY,32
-2026-09-23,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Indien,IN,31
-2026-09-23,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Rumänien,RO,28
-2026-09-23,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Afghanistan,AF,27
-2026-09-23,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Polen,PL,27
-2026-09-23,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Kosovo,XK,25
-2026-09-23,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Sri Lanka,LK,21
-2026-09-23,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Serbien,RS,21
-2026-09-23,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Grossbritannien,GB,20
-2026-09-23,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Nordmazedonien,MK,19
-2026-09-23,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Österreich,AT,19
-2026-09-23,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Somalia,SO,17
-2026-09-23,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Russland,RU,16
-2026-09-23,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Ungarn,HU,16
-2026-09-23,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Griechenland,GR,14
-2026-09-23,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Frankreich,FR,12
-2026-09-23,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Kroatien,HR,11
-2026-09-23,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Niederlande,NL,11
-2026-09-23,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Bangladesh,BD,11
-2026-09-23,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Dominikanische Republik,DO,10
-2026-09-23,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Äthiopien,ET,10
-2026-09-23,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Bosnien und Herzegowina,BA,10
-2026-09-23,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Slowakische Republik,SK,9
-2026-09-23,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Vereinigte Staaten,US,9
-2026-09-23,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Bulgarien,BG,8
-2026-09-23,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Lettland,LV,7
-2026-09-23,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Brasilien,BR,6
-2026-09-23,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Slowenien,SI,6
-2026-09-23,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Irak,IQ,6
-2026-09-23,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Restliches Nordafrika,,16
-2026-09-23,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Restliches Südostasien,,11
-2026-09-23,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Restliches Nordeuropa,,10
-2026-09-23,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Restliches Westasien,,9
-2026-09-23,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Restliches Westeuropa,,8
-2026-09-23,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Restliches Westafrika,,8
-2026-09-23,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Restliches Europa,,13
-2026-09-23,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Restliches Asien,,11
-2026-09-23,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Restliches Amerika,,10
-2026-09-23,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Restliches Afrika,,9
-2026-09-23,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Staatenlos,,1 bis 5
-2026-09-23,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Staat unbekannt,,1 bis 5
+stand,kanton,jahr,schultraeger_code,schultraeger,schultraeger_typ,staatsangehoerigkeit,staatsangehoerigkeit_iso2_code,anzahl,obs_status
+2026-11-03,zh,2025,K023,Andelfingen,Primarschulgemeinde,Schweiz,CH,422,A
+2026-11-03,zh,2025,K031,Andelfingen,Sekundarschulgemeinde,Schweiz,CH,261,A
+2026-11-03,zh,2025,K023,Andelfingen,Primarschulgemeinde,Ukraine,UA,15,A
+2026-11-03,zh,2025,K023,Andelfingen,Primarschulgemeinde,Deutschland,DE,11,A
+2026-11-03,zh,2025,K031,Andelfingen,Sekundarschulgemeinde,Ukraine,UA,9,A
+2026-11-03,zh,2025,K023,Andelfingen,Primarschulgemeinde,Portugal,PT,8,A
+2026-11-03,zh,2025,K023,Andelfingen,Primarschulgemeinde,Restliches Südosteuropa,,12,A
+2026-11-03,zh,2025,K031,Andelfingen,Sekundarschulgemeinde,Restliches Europa,,18,A
+2026-11-03,zh,2025,K023,Andelfingen,Primarschulgemeinde,Restliches Europa,,14,A
+2026-11-03,zh,2025,K023,Andelfingen,Primarschulgemeinde,Restliches Asien,,8,A
+2026-11-03,zh,2025,K031,Andelfingen,Sekundarschulgemeinde,Restliches Amerika,,,Q
+2026-11-03,zh,2025,K023,Andelfingen,Primarschulgemeinde,Staatenlos,,,Q
+2026-11-03,zh,2025,K031,Andelfingen,Sekundarschulgemeinde,Restliches Asien,,,Q
+2026-11-03,zh,2025,K023,Andelfingen,Primarschulgemeinde,Restliches Amerika,,,Q
+2026-11-03,zh,2025,K031,Andelfingen,Sekundarschulgemeinde,Restliches Afrika,,,Q
+2026-11-03,zh,2025,K023,Andelfingen,Primarschulgemeinde,Restliches Afrika,,,Q
+2026-11-03,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Schweiz,CH,3963,A
+2026-11-03,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Deutschland,DE,177,A
+2026-11-03,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Italien,IT,143,A
+2026-11-03,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Portugal,PT,119,A
+2026-11-03,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Spanien,ES,72,A
+2026-11-03,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Eritrea,ER,66,A
+2026-11-03,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Türkiye,TR,48,A
+2026-11-03,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Ukraine,UA,45,A
+2026-11-03,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Syrien,SY,32,A
+2026-11-03,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Indien,IN,31,A
+2026-11-03,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Rumänien,RO,28,A
+2026-11-03,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Afghanistan,AF,27,A
+2026-11-03,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Polen,PL,27,A
+2026-11-03,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Kosovo,XK,25,A
+2026-11-03,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Sri Lanka,LK,21,A
+2026-11-03,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Serbien,RS,21,A
+2026-11-03,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Grossbritannien,GB,20,A
+2026-11-03,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Österreich,AT,19,A
+2026-11-03,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Nordmazedonien,MK,19,A
+2026-11-03,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Somalia,SO,17,A
+2026-11-03,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Ungarn,HU,16,A
+2026-11-03,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Russland,RU,16,A
+2026-11-03,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Griechenland,GR,14,A
+2026-11-03,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Frankreich,FR,12,A
+2026-11-03,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Bangladesh,BD,11,A
+2026-11-03,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Kroatien,HR,11,A
+2026-11-03,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Niederlande,NL,11,A
+2026-11-03,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Dominikanische Republik,DO,10,A
+2026-11-03,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Äthiopien,ET,10,A
+2026-11-03,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Bosnien und Herzegowina,BA,10,A
+2026-11-03,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Slowakische Republik,SK,9,A
+2026-11-03,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Vereinigte Staaten,US,9,A
+2026-11-03,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Bulgarien,BG,8,A
+2026-11-03,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Lettland,LV,7,A
+2026-11-03,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Slowenien,SI,6,A
+2026-11-03,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Irak,IQ,6,A
+2026-11-03,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Brasilien,BR,6,A
+2026-11-03,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Restliches Nordafrika,,16,A
+2026-11-03,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Restliches Südostasien,,11,A
+2026-11-03,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Restliches Nordeuropa,,10,A
+2026-11-03,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Restliches Westasien,,9,A
+2026-11-03,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Restliches Westeuropa,,8,A
+2026-11-03,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Restliches Westafrika,,8,A
+2026-11-03,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Restliches Europa,,13,A
+2026-11-03,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Restliches Asien,,11,A
+2026-11-03,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Restliches Amerika,,10,A
+2026-11-03,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Restliches Afrika,,9,A
+2026-11-03,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Staat unbekannt,,,Q
+2026-11-03,zh,2025,A062,Zürich-Letzi,Kreisschulpflege,Staatenlos,,,Q

@@ -245,6 +245,57 @@ async def test_ein_traeger_wird_benannt_nicht_zusammengezaehlt():
     assert "Zusammengezählt" not in md
 
 
+def _sek1_rows(gemeinde: str, jahr: str) -> list[dict]:
+    import csv
+    import io
+
+    return [
+        r
+        for r in csv.DictReader(io.StringIO(SAMPLE_SEK1_CSV))
+        if r["schulgemeinde"] == gemeinde and r["jahr"] == jahr
+    ]
+
+
+async def _sek1_profil(csv_text: str, **kw):
+    from zh_education_mcp.server import Sek1ProfilInput, zh_edu_sek1_profil
+
+    with respx.mock:
+        respx.get(f"{BISTA_BASE}/data_lernende_sekundarstufe_i_anforderungstyp").mock(
+            return_value=httpx.Response(200, text=csv_text)
+        )
+        return await zh_edu_sek1_profil(Sek1ProfilInput(**kw))
+
+
+@pytest.mark.asyncio
+async def test_eine_aufgezeichnete_q_zeile_gilt_als_unterdrueckt():
+    """Aus der Aufnahme vom 3.11.2026: leere Zelle, ``obs_status`` Q."""
+    rows = _sek1_rows("Adliswil", "2025")
+    q = [r for r in rows if r["obs_status"] == "Q"]
+    assert q and all(r["anzahl"] == "" for r in q), "Aufnahme trägt den Q-Fall nicht mehr"
+    total = sum(int(r["anzahl"]) for r in rows if r["obs_status"] == "A")
+
+    md = await _sek1_profil(SAMPLE_SEK1_CSV, schulgemeinde="Adliswil", jahr=2025)
+    assert f"{len(q)} von {len(rows)} Zeilen" in md
+    assert f"**{total:,}**" in md
+    assert "| 1 bis 5 |" in md
+
+
+@pytest.mark.asyncio
+async def test_dieselbe_zeile_mit_a_statt_q_ist_ein_datenfehler():
+    """Leere Zelle, aber «gültig» markiert: kein «1 bis 5» erfinden."""
+    from mcp.server.mcpserver.exceptions import ToolError
+
+    lines = SAMPLE_SEK1_CSV.splitlines(keepends=True)
+    i = next(
+        n for n, line in enumerate(lines) if ",Adliswil," in line and line.rstrip().endswith(",,Q")
+    )
+    assert ",2025," in lines[i], "Aufnahme trägt den Q-Fall 2025 nicht mehr"
+    lines[i] = lines[i].rstrip()[:-1] + "A\n"
+
+    with pytest.raises(ToolError, match="Datenfehler der Quelle"):
+        await _sek1_profil("".join(lines), schulgemeinde="Adliswil", jahr=2025)
+
+
 @pytest.mark.asyncio
 async def test_not_found_returns_helpful_message():
     """Unbekannte Schulgemeinde gibt hilfreiche Fehlermeldung zurück."""
