@@ -297,6 +297,29 @@ async def test_dieselbe_zeile_mit_a_statt_q_ist_ein_datenfehler():
 
 
 @pytest.mark.asyncio
+async def test_eine_fehlende_spalte_wird_als_formatwechsel_gemeldet():
+    """Die Quelle hat geantwortet, aber ohne eine gelesene Spalte.
+
+    Gebaut aus der Aufnahme, nur ``anzahl`` umbenannt. Vorher kam beim Client
+    «Unerwarteter interner Fehler. Bitte später erneut versuchen.» an — falsch
+    in beiden Hälften: Der Fehler ist erkannt, und ein neuer Versuch liefert
+    dieselbe Kopfzeile.
+    """
+    from mcp.server.mcpserver.exceptions import ToolError
+
+    header, rest = SAMPLE_SEK1_CSV.split("\n", 1)
+    assert ",anzahl," in header, "Aufnahme trägt die Spalte nicht mehr"
+    renamed = header.replace(",anzahl,", ",wert,") + "\n" + rest
+
+    with pytest.raises(ToolError) as exc:
+        await _sek1_profil(renamed, schulgemeinde="Adliswil")
+    msg = str(exc.value)
+    assert "Format" in msg
+    assert "erneut versuchen" not in msg
+    assert "interner Fehler" not in msg
+
+
+@pytest.mark.asyncio
 async def test_not_found_returns_helpful_message():
     """Unbekannte Schulgemeinde gibt hilfreiche Fehlermeldung zurück."""
     from zh_education_mcp.server import SchulkreisTrendInput, zh_edu_schulkreis_trend

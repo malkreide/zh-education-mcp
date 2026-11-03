@@ -78,6 +78,16 @@ def _handle_error(e: Exception) -> str:
     # Quelle hat geantwortet, und dieselbe Abfrage liefert morgen dieselbe
     # widersprüchliche Zelle. Ein deterministischer Fehler bekommt keinen
     # Wiederholungsrat.
+    # Dasselbe für die Form: `_confirm_shape` hat den Formatwechsel erkannt und
+    # benannt. Im Sammelzweig kam davon «unerwarteter interner Fehler, bitte
+    # später erneut» an — so am 21.9.2026, als `zh_edu_wohnort_trend` wegen
+    # eines BOM ausfiel. Die Spaltennamen bleiben im Log (OBS-002).
+    if isinstance(e, UpstreamSchemaError):
+        return (
+            "Fehler: BISTA hat das Format dieses Datensatzes geändert — eine Spalte, "
+            "die der Server liest, fehlt. Ein erneuter Versuch ändert daran nichts; "
+            "der Server muss an das neue Format angepasst werden."
+        )
     if isinstance(e, UpstreamDataError):
         return (
             "Fehler: BISTA liefert einen Zählwert, der als gültig markiert ist "

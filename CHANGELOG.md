@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Behoben
 
+- **Formatwechsel der Quelle wird als solcher gemeldet.** Fehlte einem
+  Datensatz eine gelesene Spalte, erkannte `_confirm_shape` das zwar, beim
+  Client kam aber «Unerwarteter interner Fehler. Bitte später erneut
+  versuchen.» an. `_handle_error` hat dafür jetzt einen eigenen Zweig: Die
+  Meldung nennt den Formatwechsel und gibt keinen Wiederholungsrat; die
+  Spaltennamen bleiben im Log.
 - **`obs_status` statt «1 bis 5».** Seit November 2026 kennzeichnen
   `data_lernende_sekundarstufe_i_anforderungstyp` und
   `data_lernende_regelschule_regional_staatsangehoerigkeit` unterdrueckte
