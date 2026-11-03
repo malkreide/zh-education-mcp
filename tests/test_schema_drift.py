@@ -15,6 +15,7 @@ import respx
 from zh_education_mcp.constants import BISTA_API, EP_SEK1
 from zh_education_mcp.data import (
     UpstreamDataError,
+    UpstreamSchemaError,
     _handle_error,
     _normalise_keys,
     _parse_count,
@@ -148,6 +149,12 @@ class TestRowCount:
         """Vier Datensätze führen kein ``obs_status``; dort bleibt es beim Alten."""
         assert _row_count({"anzahl": anzahl}) is None
         assert _row_count({"anzahl": "42"}) == 42
+
+    def test_a_schema_change_is_named_and_not_retried(self):
+        msg = _handle_error(UpstreamSchemaError("führt ['anzahl'] nicht mehr"))
+        assert "Format" in msg
+        assert "erneut versuchen" not in msg
+        assert "anzahl" not in msg, "Interna bleiben im Log (OBS-002)"
 
     def test_the_data_error_is_named_and_not_retried(self):
         """Ein deterministischer Fehler bekommt keinen «bitte später»-Rat."""
