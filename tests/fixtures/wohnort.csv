@@ -1,4 +1,4 @@
-jahr,gebietstyp_Code,gebietstyp,gebiet_Code,gebiet_Bezeichnung,stufe,anzahl
+jahr,gebietstyp_Code,gebietstyp,gebiet_code,gebiet_bezeichnung,stufe,anzahl
 2000,2,Bezirk,110,Bezirk Winterthur,Kindergarten,3039
 2001,2,Bezirk,110,Bezirk Winterthur,Kindergarten,3072
 2002,2,Bezirk,110,Bezirk Winterthur,Kindergarten,3074
@@ -50,7 +50,7 @@ jahr,gebietstyp_Code,gebietstyp,gebiet_Code,gebiet_Bezeichnung,stufe,anzahl
 2022,2,Bezirk,110,Bezirk Winterthur,Primarschule,11628
 2023,2,Bezirk,110,Bezirk Winterthur,Primarschule,11837
 2024,2,Bezirk,110,Bezirk Winterthur,Primarschule,12018
-2025,2,Bezirk,110,Bezirk Winterthur,Primarschule,12057
+2025,2,Bezirk,110,Bezirk Winterthur,Primarschule,12056
 2000,2,Bezirk,110,Bezirk Winterthur,Sekundarstufe I,4839
 2001,2,Bezirk,110,Bezirk Winterthur,Sekundarstufe I,4833
 2002,2,Bezirk,110,Bezirk Winterthur,Sekundarstufe I,4897
@@ -76,7 +76,7 @@ jahr,gebietstyp_Code,gebietstyp,gebiet_Code,gebiet_Bezeichnung,stufe,anzahl
 2022,2,Bezirk,110,Bezirk Winterthur,Sekundarstufe I,5523
 2023,2,Bezirk,110,Bezirk Winterthur,Sekundarstufe I,5742
 2024,2,Bezirk,110,Bezirk Winterthur,Sekundarstufe I,5894
-2025,2,Bezirk,110,Bezirk Winterthur,Sekundarstufe I,5950
+2025,2,Bezirk,110,Bezirk Winterthur,Sekundarstufe I,5951
 2000,2,Bezirk,110,Bezirk Winterthur,Sekundarstufe II - Berufsschule,4271
 2001,2,Bezirk,110,Bezirk Winterthur,Sekundarstufe II - Berufsschule,4293
 2002,2,Bezirk,110,Bezirk Winterthur,Sekundarstufe II - Berufsschule,4449
@@ -98,11 +98,11 @@ jahr,gebietstyp_Code,gebietstyp,gebiet_Code,gebiet_Bezeichnung,stufe,anzahl
 2018,2,Bezirk,110,Bezirk Winterthur,Sekundarstufe II - Berufsschule,4710
 2019,2,Bezirk,110,Bezirk Winterthur,Sekundarstufe II - Berufsschule,4808
 2020,2,Bezirk,110,Bezirk Winterthur,Sekundarstufe II - Berufsschule,5119
-2021,2,Bezirk,110,Bezirk Winterthur,Sekundarstufe II - Berufsschule,5095
-2022,2,Bezirk,110,Bezirk Winterthur,Sekundarstufe II - Berufsschule,5104
-2023,2,Bezirk,110,Bezirk Winterthur,Sekundarstufe II - Berufsschule,5203
+2021,2,Bezirk,110,Bezirk Winterthur,Sekundarstufe II - Berufsschule,5093
+2022,2,Bezirk,110,Bezirk Winterthur,Sekundarstufe II - Berufsschule,5106
+2023,2,Bezirk,110,Bezirk Winterthur,Sekundarstufe II - Berufsschule,5202
 2024,2,Bezirk,110,Bezirk Winterthur,Sekundarstufe II - Berufsschule,5194
-2025,2,Bezirk,110,Bezirk Winterthur,Sekundarstufe II - Berufsschule,5312
+2025,2,Bezirk,110,Bezirk Winterthur,Sekundarstufe II - Berufsschule,5311
 2000,2,Bezirk,110,Bezirk Winterthur,Sekundarstufe II - Mittelschule,1179
 2001,2,Bezirk,110,Bezirk Winterthur,Sekundarstufe II - Mittelschule,1185
 2002,2,Bezirk,110,Bezirk Winterthur,Sekundarstufe II - Mittelschule,985

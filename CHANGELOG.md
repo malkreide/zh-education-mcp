@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Behoben
 
+- **`obs_status` statt «1 bis 5».** Seit November 2026 kennzeichnen
+  `data_lernende_sekundarstufe_i_anforderungstyp` und
+  `data_lernende_regelschule_regional_staatsangehoerigkeit` unterdrueckte
+  Kleinstwerte mit leerer Zelle und `obs_status` `Q` statt mit dem Text
+  «1 bis 5»; normale Werte tragen `A`. Gegen die Aufnahme vom 23.9. ist das
+  deckungsgleich (342 Zeilen), die Zahlen aendern sich nicht. Neu entscheidet
+  `obs_status`, wo vorhanden: `Q` gilt als unterdrueckt, eine leere Zelle mit
+  `A` wird als Datenfehler der Quelle gemeldet, statt als «1 bis 5» zu
+  erscheinen. Hinweistext und Server-Instruktionen schreiben der Quelle den
+  Wortlaut «1 bis 5» nicht mehr zu. Fixtures am 3.11.2026 neu aufgezeichnet.
 - **UTF-8-BOM der BISTA-Antworten.** Seit spaetestens 21.9.2026 beginnen alle
   sechs Datensaetze mit `EF BB BF` bei unveraendertem `charset=utf-8`; das BOM
   landete im ersten Spaltennamen. `zh_edu_wohnort_trend` (erste Spalte `jahr`)
